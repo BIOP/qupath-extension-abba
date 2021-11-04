@@ -32,6 +32,7 @@ dependencies {
     shadow("org.slf4j:slf4j-api:1.7.30")
     implementation("commons-io:commons-io:2.11.0")
     implementation("net.imglib2:imglib2-realtransform:3.1.1")
+    implementation("ch.epfl.biop:qupath-extension-warpy:0.1.1.2")
 
     testImplementation("io.github.qupath:qupath-gui-fx:$qupathVersion")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.7.2")
