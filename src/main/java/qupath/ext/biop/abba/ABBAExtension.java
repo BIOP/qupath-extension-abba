@@ -3,29 +3,39 @@ package qupath.ext.biop.abba;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.lib.common.Version;
+import qupath.lib.gui.ActionTools;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.extensions.GitHubProject;
 import qupath.lib.gui.extensions.QuPathExtension;
+import qupath.lib.gui.tools.MenuTools;
 
 /**
- * Install Warpy as an extension.
+ * Install ABBA extension as an extension.
  * <p>
- * Installs Warpy into QuPath, adding some metadata and adds the necessary global variables to QuPath's Preferences
+ * Installs ABBA extension into QuPath, adding some metadata and adds the necessary global variables to QuPath's Preferences
  *
  * @author Nicolas Chiaruttini
  */
 public class ABBAExtension implements QuPathExtension, GitHubProject {
     private final static Logger logger = LoggerFactory.getLogger(ABBAExtension.class);
 
-
     @Override
     public GitHubRepo getRepository() {
         return GitHubRepo.create("QuPath ABBA Extension", "biop", "qupath-extension-abba");
     }
 
+    private static boolean alreadyInstalled = false;
+
     @Override
     public void installExtension(QuPathGUI qupath) {
+        if (alreadyInstalled)
+            return;
+        alreadyInstalled = true;
+        var actionLoadAtlasRois = ActionTools.createAction(new LoadAtlasRoisToQuPathCommand(qupath), "Load Atlas Annotations into Open Image");
 
+        MenuTools.addMenuItems(qupath.getMenu("Extensions", false),
+                MenuTools.createMenu("ABBA",actionLoadAtlasRois)
+        );
     }
 
     @Override
