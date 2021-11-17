@@ -20,11 +20,11 @@ import qupath.lib.objects.PathObjects;
 import qupath.lib.projects.Project;
 import qupath.lib.projects.ProjectImageEntry;
 import qupath.lib.projects.Projects;
+import qupath.lib.roi.ROIs;
 import qupath.lib.roi.RoiTools;
 import qupath.lib.roi.interfaces.ROI;
 import qupath.lib.scripting.QP;
 
-import java.awt.*;
 import java.awt.geom.AffineTransform;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -39,9 +39,7 @@ public class AtlasTools {
 
     final static Logger logger = LoggerFactory.getLogger(AtlasTools.class);
 
-    private static QuPathGUI qupath = QuPathGUI.getInstance();
-
-    private static String title = "Load ABBA RoiSets from current QuPath project";
+    private static final QuPathGUI qupath = QuPathGUI.getInstance();
 
     static private PathObject createAnnotationHierarchy(List<PathObject> annotations) {
 
@@ -60,6 +58,7 @@ public class AtlasTools {
             if (parent != null) {
                 parent.addPathObject(annotation);
             } else {
+                System.out.println("No parent, id = "+id);
                 // Found the root Path Object
                 rootReference.set(annotation);
             }
@@ -72,7 +71,12 @@ public class AtlasTools {
     static PathObject getWarpedAtlasRegions(ImageData imageData, String atlasName, boolean splitLeftRight) {
 
         List<PathObject> annotations = getFlattenedWarpedAtlasRegions(imageData, atlasName, splitLeftRight); // TODO
+
+        /*imageData.getHierarchy().addPathObjects(annotations);
+        return annotations.get(0);*/
+
         if (splitLeftRight) {
+            assert annotations != null;
             List<PathObject> annotationsLeft = annotations
                     .stream()
                     .filter(po -> po.getPathClass().isDerivedFrom(QP.getPathClass("Left")))
@@ -85,13 +89,27 @@ public class AtlasTools {
 
             PathObject rootLeft = createAnnotationHierarchy(annotationsLeft);
             PathObject rootRight = createAnnotationHierarchy(annotationsRight);
-            ROI rootFused = RoiTools.combineROIs(rootLeft.getROI(), rootRight.getROI(), RoiTools.CombineOp.ADD);
-            PathObject rootObject = PathObjects.createAnnotationObject(rootFused);
+            ROI rootFused;
+            PathObject rootObject;
+            if ((rootLeft!=null)&&(rootRight!=null)) {
+                rootFused = RoiTools.combineROIs(rootLeft.getROI(), rootRight.getROI(), RoiTools.CombineOp.ADD);
+            } else if (rootLeft==null) {
+                rootFused = RoiTools.combineROIs(ROIs.createEmptyROI(), rootRight.getROI(), RoiTools.CombineOp.ADD);
+            } else {
+                assert rootRight==null;
+                rootFused = RoiTools.combineROIs(rootLeft.getROI(), ROIs.createEmptyROI(), RoiTools.CombineOp.ADD);
+            }
+            rootObject = PathObjects.createAnnotationObject(rootFused);
             rootObject.setName("Root");
-            rootObject.addPathObject(rootLeft);
-            rootObject.addPathObject(rootRight);
+            if (rootLeft!=null) {
+                rootObject.addPathObject(rootLeft);
+            }
+            if (rootRight!=null) {
+                rootObject.addPathObject(rootRight);
+            }
             return rootObject; // TODO
         } else {
+            assert annotations != null;
             return createAnnotationHierarchy(annotations);
         }
 
@@ -103,6 +121,11 @@ public class AtlasTools {
         // Get the project folder and get the ontology
         Path ontologyPath = Paths.get(Projects.getBaseDirectory(project).getAbsolutePath(), atlasName+"-Ontology.json");
         AtlasOntology ontology = AtlasHelper.openOntologyFromJsonFile(ontologyPath.toString());
+
+        if (ontology==null) {
+            logger.error("Couldn't find ontology at "+ontologyPath);
+            return new ArrayList<>();
+        }
 
         // Loop through each ImageEntry
         ProjectImageEntry entry = project.getEntry(imageData);
@@ -117,8 +140,17 @@ public class AtlasTools {
         List<Roi> rois = RoiSetLoader.openRoiSet(roisetPath.toAbsolutePath().toFile());
         logger.info("Loading {} Atlas Regions for {}", rois.size(), entry.getImageName());
 
-        Roi left = rois.get(rois.size() - 2);
-        Roi right = rois.get(rois.size() - 1);
+        Roi right = null;
+        Roi left = null;
+
+        for (Roi roi:rois) {
+            if (roi.getName().equals("Left")) {
+                left = roi;
+            }
+            if (roi.getName().equals("Right")) {
+                right = roi;
+            }
+        }
 
         rois.remove(left);
         rois.remove(right);
@@ -148,16 +180,15 @@ public class AtlasTools {
                     transform.translate(-server.getHeight(), 0);
                     break;
                 default:
-                    System.err.println("Unknow rotation for rotated image server: "+ris.getRotation());
+                    System.err.println("Unknown rotation for rotated image server: "+ris.getRotation());
             }
         }
 
         AffineTransform finalTransform = transform;
 
         List<PathObject> annotations = rois.stream().map(roi -> {
-            // Create the PathObject
+            // Create PathObject
 
-            //PathObject object = IJTools.convertToAnnotation( imp, imageData.getServer(), roi, 1, null );
             PathObject object = PathObjects.createAnnotationObject(IJTools.convertToROI(roi, 0, 0, 1, null));
 
             // Handles rotated image server
@@ -174,7 +205,10 @@ public class AtlasTools {
             object.setName(name);
             object.getMeasurementList().putMeasurement("ID", node.getId());
             if (node.parent()!=null) {
+                System.out.println("Parent ID = "+node.parent().getId());
                 object.getMeasurementList().putMeasurement("Parent ID", node.parent().getId());
+            } else {
+                System.out.println("Node without parent; id = "+node.getId());
             }
             object.getMeasurementList().putMeasurement("Side", 0);
             object.setPathClass(QP.getPathClass(name));
@@ -186,28 +220,39 @@ public class AtlasTools {
         }).collect(Collectors.toList());
 
         if (splitLeftRight) {
-            ROI leftROI = IJTools.convertToROI(left, 0, 0, 1, null);
-            ROI rightROI = IJTools.convertToROI(right, 0, 0, 1, null);
+            ROI leftROI = null;
+            ROI rightROI = null;
+            if (left!=null) {
+                leftROI = IJTools.convertToROI(left, 0, 0, 1, null);
+            }
+            if (right!=null) {
+                rightROI = IJTools.convertToROI(right, 0, 0, 1, null);
+            }
             List<PathObject> splitObjects = new ArrayList<>();
             for (PathObject annotation : annotations) {
-                ROI shapeLeft = RoiTools.combineROIs(leftROI, annotation.getROI(), RoiTools.CombineOp.INTERSECT);
-                if (!shapeLeft.isEmpty()) {
-                    PathObject objectLeft = PathObjects.createAnnotationObject(shapeLeft, annotation.getPathClass(), duplicateMeasurements(annotation.getMeasurementList()));
-                    objectLeft.setName(annotation.getName());
-                    objectLeft.setPathClass(QP.getDerivedPathClass(QP.getPathClass("Left"), annotation.getPathClass().getName()));
-                    objectLeft.setColorRGB(annotation.getColorRGB());
-                    objectLeft.setLocked(true);
-                    splitObjects.add(objectLeft);
+
+                if (leftROI!=null) {
+                    ROI shapeLeft = RoiTools.combineROIs(leftROI, annotation.getROI(), RoiTools.CombineOp.INTERSECT);
+                    if (!shapeLeft.isEmpty()) {
+                        PathObject objectLeft = PathObjects.createAnnotationObject(shapeLeft, annotation.getPathClass(), duplicateMeasurements(annotation.getMeasurementList()));
+                        objectLeft.setName(annotation.getName());
+                        objectLeft.setPathClass(QP.getDerivedPathClass(QP.getPathClass("Left"), annotation.getPathClass().getName()));
+                        objectLeft.setColorRGB(annotation.getColorRGB());
+                        objectLeft.setLocked(true);
+                        splitObjects.add(objectLeft);
+                    }
                 }
 
-                ROI shapeRight = RoiTools.combineROIs(rightROI, annotation.getROI(), RoiTools.CombineOp.INTERSECT);
-                if (!shapeRight.isEmpty()) {
-                    PathObject objectRight = PathObjects.createAnnotationObject(shapeRight, annotation.getPathClass(), duplicateMeasurements(annotation.getMeasurementList()));
-                    objectRight.setName(annotation.getName());
-                    objectRight.setPathClass(QP.getDerivedPathClass(QP.getPathClass("Right"), annotation.getPathClass().getName()));
-                    objectRight.setColorRGB(annotation.getColorRGB());
-                    objectRight.setLocked(true);
-                    splitObjects.add(objectRight);
+                if (rightROI!=null) {
+                    ROI shapeRight = RoiTools.combineROIs(rightROI, annotation.getROI(), RoiTools.CombineOp.INTERSECT);
+                    if (!shapeRight.isEmpty()) {
+                        PathObject objectRight = PathObjects.createAnnotationObject(shapeRight, annotation.getPathClass(), duplicateMeasurements(annotation.getMeasurementList()));
+                        objectRight.setName(annotation.getName());
+                        objectRight.setPathClass(QP.getDerivedPathClass(QP.getPathClass("Right"), annotation.getPathClass().getName()));
+                        objectRight.setColorRGB(annotation.getColorRGB());
+                        objectRight.setLocked(true);
+                        splitObjects.add(objectRight);
+                    }
                 }
 
             }
