@@ -26,13 +26,17 @@ import qupath.lib.roi.interfaces.ROI;
 import qupath.lib.scripting.QP;
 
 import java.awt.geom.AffineTransform;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class AtlasTools {
@@ -68,12 +72,9 @@ public class AtlasTools {
         return rootReference.get();
     }
 
-    static PathObject getWarpedAtlasRegions(ImageData imageData, String atlasName, boolean splitLeftRight) {
+    static PathObject getWarpedAtlasRegions(AtlasOntology ontology, ImageData imageData, String atlasName, boolean splitLeftRight) {
 
-        List<PathObject> annotations = getFlattenedWarpedAtlasRegions(imageData, atlasName, splitLeftRight); // TODO
-
-        /*imageData.getHierarchy().addPathObjects(annotations);
-        return annotations.get(0);*/
+        List<PathObject> annotations = getFlattenedWarpedAtlasRegions(ontology, imageData, atlasName, splitLeftRight);
 
         if (splitLeftRight) {
             assert annotations != null;
@@ -115,17 +116,8 @@ public class AtlasTools {
 
     }
 
-    public static List<PathObject> getFlattenedWarpedAtlasRegions(ImageData imageData, String atlasName, boolean splitLeftRight) {
+    public static List<PathObject> getFlattenedWarpedAtlasRegions(AtlasOntology ontology, ImageData imageData, String atlasName, boolean splitLeftRight) {
         Project project = qupath.getProject();
-
-        // Get the project folder and get the ontology
-        Path ontologyPath = Paths.get(Projects.getBaseDirectory(project).getAbsolutePath(), atlasName+"-Ontology.json");
-        AtlasOntology ontology = AtlasHelper.openOntologyFromJsonFile(ontologyPath.toString());
-
-        if (ontology==null) {
-            logger.error("Couldn't find ontology at "+ontologyPath);
-            return new ArrayList<>();
-        }
 
         // Loop through each ImageEntry
         ProjectImageEntry entry = project.getEntry(imageData);
@@ -201,14 +193,13 @@ public class AtlasTools {
             // Get associated information
             AtlasNode node = ontology.getNodeFromId(object_id);
             String name = node.data().get(ontology.getNamingProperty());
-            System.out.println("node:"+node.getId()+":"+name);
             object.setName(name);
             object.getMeasurementList().putMeasurement("ID", node.getId());
             if (node.parent()!=null) {
-                System.out.println("Parent ID = "+node.parent().getId());
+                //System.out.println("Parent ID = "+node.parent().getId());
                 object.getMeasurementList().putMeasurement("Parent ID", node.parent().getId());
             } else {
-                System.out.println("Node without parent; id = "+node.getId());
+                //System.out.println("Node without parent; id = "+node.getId());
             }
             object.getMeasurementList().putMeasurement("Side", 0);
             object.setPathClass(QP.getPathClass(name));
@@ -262,8 +253,8 @@ public class AtlasTools {
         }
     }
 
-    public static void loadWarpedAtlasAnnotations(ImageData imageData, String atlasName, boolean splitLeftRight) {
-        imageData.getHierarchy().addPathObject(getWarpedAtlasRegions(imageData, atlasName, splitLeftRight));
+    public static void loadWarpedAtlasAnnotations(AtlasOntology ontology, ImageData imageData, String atlasName, boolean splitLeftRight) {
+        imageData.getHierarchy().addPathObject(getWarpedAtlasRegions(ontology, imageData, atlasName, splitLeftRight));
         imageData.getHierarchy().fireHierarchyChangedEvent(AtlasTools.class);
     }
 
@@ -278,4 +269,32 @@ public class AtlasTools {
         return list;
     }
 
+    public static List<String> getAvailableAtlasRegistration(ImageData imageData) {
+        Project project = qupath.getProject();
+        ProjectImageEntry entry = project.getEntry(imageData);
+
+        List<String> atlasNames = new ArrayList<>();
+
+        // Now look for files named "ABBA-Roiset-"+atlasName+".zip";
+        // regex ( found with https://regex101.com/): (ABBA-RoiSet-)(.+)(.zip)
+
+        Pattern atlasNamePattern = Pattern.compile("(ABBA-RoiSet-)(.+)(.zip)");
+
+        try {
+            Files.list(entry.getEntryPath())
+                    .forEach(path -> {
+                        Matcher matcher = atlasNamePattern.matcher(path.getFileName().toString());
+                        if (matcher.matches())
+                            atlasNames.add(matcher.group(2)); // Why in hell is this one-based ?
+                    });
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+
+        return atlasNames;
+    }
+
+    public static Set<String> getNamingProperties(AtlasOntology ontology) {
+        return ontology.getRoot().data().keySet();
+    }
 }

@@ -2,12 +2,20 @@ package qupath.ext.biop.abba;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import qupath.lib.display.ImageDisplay;
+import qupath.ext.biop.abba.struct.AtlasHelper;
+import qupath.ext.biop.abba.struct.AtlasOntology;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.dialogs.Dialogs;
 import qupath.lib.images.ImageData;
+import qupath.lib.projects.Projects;
+
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.util.List;
 
 public class LoadAtlasRoisToQuPathCommand implements Runnable {
+
+    final static Logger logger = LoggerFactory.getLogger(LoadAtlasRoisToQuPathCommand.class);
 
     private static QuPathGUI qupath;
 
@@ -40,9 +48,31 @@ public class LoadAtlasRoisToQuPathCommand implements Runnable {
         }
         if (doRun) {
             ImageData imageData = qupath.getImageData();
-            // TODO : Find atlas name
-            AtlasTools.loadWarpedAtlasAnnotations(imageData, "Adult Mouse Brain - Allen Brain Atlas V3", splitLeftRight);
-            System.out.println("Import DONE");
+            List<String> atlasNames = AtlasTools.getAvailableAtlasRegistration(imageData);
+            if (atlasNames.size()==0) {
+                logger.error("No atlas registration found."); // TODO : show an error message for the user
+                return;
+            }
+
+            String atlasName = atlasNames.get(0);
+            if (atlasNames.size()>1) {
+                logger.warn("Several atlases registration have been found. Importing atlas: "+atlasName);
+            }
+
+            Path ontologyPath = Paths.get(Projects.getBaseDirectory(qupath.getProject()).getAbsolutePath(), atlasName+"-Ontology.json");
+            AtlasOntology ontology = AtlasHelper.openOntologyFromJsonFile(ontologyPath.toString());
+
+            // Get naming possibilities
+            String namingProperty =
+                    Dialogs.showChoiceDialog("Regions names",
+                            "Please select the property for naming the imported regions.",
+                            AtlasTools.getNamingProperties(ontology).toArray(new String[0]),
+                            "ID");
+
+            ontology.setNamingProperty(namingProperty);
+
+            AtlasTools.loadWarpedAtlasAnnotations(ontology, imageData, atlasName, splitLeftRight);
+
         }
     }
 
