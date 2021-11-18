@@ -5,7 +5,7 @@ This repo adds some support for the [ABBA plugin](https://biop.github.io/ijp-ima
 ## Installing
 
 You'll also need to install [`qupath-extension-warpy`](https://github.com/BIOP/qupath-extension-warpy) to access all functionalities of this extension.
-Download the latest `qupath-extension-abba-[version].jar` file from [releases](https://github.com/biop/qupath-extension-warpy/releases) and drag it onto the main QuPath window.
+Download the latest `qupath-extension-abba-[version].jar` file from [releases](https://github.com/BIOP/qupath-extension-abba/releases) and drag it onto the main QuPath window.
 
 If you haven't installed any extensions before, you'll be prompted to select a QuPath user directory.
 The extension will then be copied to a location inside that directory.
