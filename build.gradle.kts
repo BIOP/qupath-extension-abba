@@ -23,7 +23,7 @@ description = "QuPath extension to use Aligning Big Brain and Atlases"
 
 group = "ch.epfl.biop"
 // artifact = "qupath-extension-abba"
-version = "0.1.0-SNAPSHOT"
+version = "0.1.1-SNAPSHOT"
 
 dependencies {
     val qupathVersion = "0.3.0" // For now
@@ -31,8 +31,8 @@ dependencies {
     shadow("io.github.qupath:qupath-gui-fx:$qupathVersion")
     shadow("org.slf4j:slf4j-api:1.7.30")
     implementation("commons-io:commons-io:2.11.0")
-    implementation("net.imglib2:imglib2-realtransform:3.1.1")
-    implementation("ch.epfl.biop:qupath-extension-warpy:0.1.1.2")
+    implementation("net.imglib2:imglib2-realtransform:3.1.2")
+    implementation("ch.epfl.biop:qupath-extension-warpy:0.2.1")
 
     testImplementation("io.github.qupath:qupath-gui-fx:$qupathVersion")
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.7.2")
@@ -98,7 +98,13 @@ publishing {
         maven {
             name = "scijava"
             //credentials(PasswordCredentials::class)
-            url = uri("https://maven.scijava.org/content/repositories/releases")
+            url = if (version.toString().endsWith("SNAPSHOT"))
+                uri("https://maven.scijava.org/content/repositories/snapshots")
+            else uri("https://maven.scijava.org/content/repositories/releases")
+            credentials {
+                username = System.getenv("MAVEN_USER")
+                password = System.getenv("MAVEN_PASS")
+            }
         }
     }
 }
