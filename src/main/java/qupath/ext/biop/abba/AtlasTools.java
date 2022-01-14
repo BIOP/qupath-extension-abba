@@ -215,9 +215,19 @@ public class AtlasTools {
             ROI rightROI = null;
             if (left!=null) {
                 leftROI = IJTools.convertToROI(left, 0, 0, 1, null);
+                // Handles rotated image server
+                if (finalTransform !=null) {
+                    PathObject leftObject = PathObjects.createAnnotationObject(leftROI);
+                    leftROI = PathObjectTools.transformObject(leftObject, finalTransform, true).getROI();
+                }
             }
             if (right!=null) {
                 rightROI = IJTools.convertToROI(right, 0, 0, 1, null);
+                // Handles rotated image server
+                if (finalTransform !=null) {
+                    PathObject rightObject = PathObjects.createAnnotationObject(rightROI);
+                    rightROI = PathObjectTools.transformObject(rightObject, finalTransform, true).getROI();
+                }
             }
             List<PathObject> splitObjects = new ArrayList<>();
             for (PathObject annotation : annotations) {
