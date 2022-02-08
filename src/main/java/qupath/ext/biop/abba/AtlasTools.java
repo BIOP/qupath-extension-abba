@@ -9,6 +9,7 @@ import qupath.ext.biop.abba.struct.AtlasOntology;
 import qupath.imagej.tools.IJTools;
 import qupath.lib.common.ColorTools;
 import qupath.lib.gui.QuPathGUI;
+import qupath.lib.gui.dialogs.Dialogs;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.ImageServer;
 import qupath.lib.images.servers.RotatedImageServer;
@@ -306,5 +307,33 @@ public class AtlasTools {
 
     public static Set<String> getNamingProperties(AtlasOntology ontology) {
         return ontology.getRoot().data().keySet();
+    }
+
+    public static void loadWarpedAtlasAnnotations(ImageData imageData, String namingProperty, boolean splitLeftRight) {
+        List<String> atlasNames = AtlasTools.getAvailableAtlasRegistration(imageData);
+        if (atlasNames.size()==0) {
+            logger.error("No atlas registration found."); // TODO : show an error message for the user
+            return;
+        }
+
+        String atlasName = atlasNames.get(0);
+        if (atlasNames.size()>1) {
+            logger.warn("Several atlases registration have been found. Importing atlas: "+atlasName);
+        }
+
+        Path ontologyPath = Paths.get(Projects.getBaseDirectory(qupath.getProject()).getAbsolutePath(), atlasName+"-Ontology.json");
+        AtlasOntology ontology = AtlasHelper.openOntologyFromJsonFile(ontologyPath.toString());
+
+        Set<String> namingProperties = AtlasTools.getNamingProperties(ontology);
+
+        if ( !namingProperties.contains( namingProperty ) ) {
+            logger.error("Ontology Name Property {} not found.\nAvailable properties are:  {}", namingProperty, namingProperties.toString());
+            return;
+        }
+
+        ontology.setNamingProperty(namingProperty);
+
+        // Now we have all we need, the name whether to split left and right
+        AtlasTools.loadWarpedAtlasAnnotations(ontology, imageData, atlasName, splitLeftRight);
     }
 }
