@@ -123,7 +123,7 @@ public class AtlasTools {
         // Loop through each ImageEntry
         ProjectImageEntry entry = project.getEntry(imageData);
 
-        Path roisetPath = Paths.get(entry.getEntryPath().toString(), "ABBA-Roiset-"+atlasName+".zip");
+        Path roisetPath = Paths.get(entry.getEntryPath().toString(), "ABBA-RoiSet-"+atlasName+".zip");
         if (!Files.exists(roisetPath)) {
             logger.info("No RoiSets found in {}", roisetPath);
             return null;
