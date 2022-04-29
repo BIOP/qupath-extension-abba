@@ -59,6 +59,20 @@ java {
         withJavadocJar()
 }
 
+jar {
+    // Important to set version so this can be queried within QuPath
+    manifest {
+        def manifestAttributes = [
+                "Implementation-Vendor": "QuPath developers",
+                "Implementation-Version": project.version,
+                'Automatic-Module-Name': "io.github." + moduleName,
+                "QuPath-build-time": new Date().format("yyyy-MM-dd, HH:mm")
+        ]
+
+        attributes(manifestAttributes)
+    }
+}
+
 tasks.test { useJUnitPlatform() }
 
 publishing {
