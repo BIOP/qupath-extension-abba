@@ -53,9 +53,4 @@ public class ABBAExtension implements QuPathExtension, GitHubProject {
         return QuPathExtension.super.getQuPathVersion();
     }
 
-
-   /* @Override
-    public Version getVersion() {
-        return Version.parse("0.1.3-SNAPSHOT");
-    }*/
 }

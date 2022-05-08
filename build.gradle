@@ -65,10 +65,9 @@ jar {
         def manifestAttributes = [
                 "Implementation-Vendor": "QuPath developers",
                 "Implementation-Version": project.version,
-                'Automatic-Module-Name': "io.github." + moduleName,
+                //'Automatic-Module-Name': group+ "." + moduleName,
                 "QuPath-build-time": new Date().format("yyyy-MM-dd, HH:mm")
         ]
-
         attributes(manifestAttributes)
     }
 }

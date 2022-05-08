@@ -78,7 +78,7 @@ public class LoadAtlasRoisToQuPathCommand implements Runnable {
             AtlasTools.loadWarpedAtlasAnnotations(ontology, imageData, atlasName, splitLeftRight);
 
             // Add a step to the workflow
-            String method = "AtlasTools.loadWarpedAtlasAnnotations(getCurrentImageData(), \""+namingProperty+"\", "+splitLeftRight+");";
+            String method = AtlasTools.class.getName()+".loadWarpedAtlasAnnotations(getCurrentImageData(), \""+namingProperty+"\", "+splitLeftRight+");";
             WorkflowStep newStep = new DefaultScriptableWorkflowStep("Load Brain RoiSets into Image", method);
             imageData.getHistoryWorkflow().addStep(newStep);
         }

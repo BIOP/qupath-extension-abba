@@ -1,15 +1,16 @@
 package qupath.ext.biop.abba;
 
 import ij.gui.Roi;
+import net.imglib2.realtransform.RealTransform;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import qupath.ext.biop.abba.struct.AtlasHelper;
 import qupath.ext.biop.abba.struct.AtlasNode;
 import qupath.ext.biop.abba.struct.AtlasOntology;
+import qupath.ext.biop.warpy.Warpy;
 import qupath.imagej.tools.IJTools;
 import qupath.lib.common.ColorTools;
 import qupath.lib.gui.QuPathGUI;
-import qupath.lib.gui.dialogs.Dialogs;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.ImageServer;
 import qupath.lib.images.servers.RotatedImageServer;
@@ -27,6 +28,7 @@ import qupath.lib.roi.interfaces.ROI;
 import qupath.lib.scripting.QP;
 
 import java.awt.geom.AffineTransform;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -63,7 +65,7 @@ public class AtlasTools {
             if (parent != null) {
                 parent.addPathObject(annotation);
             } else {
-                System.out.println("No parent, id = "+id);
+                // System.out.println("No parent, id = "+id);
                 // Found the root Path Object
                 rootReference.set(annotation);
             }
@@ -76,6 +78,8 @@ public class AtlasTools {
     static PathObject getWarpedAtlasRegions(AtlasOntology ontology, ImageData imageData, String atlasName, boolean splitLeftRight) {
 
         List<PathObject> annotations = getFlattenedWarpedAtlasRegions(ontology, imageData, atlasName, splitLeftRight);
+
+        if (annotations == null) return null;
 
         if (splitLeftRight) {
             assert annotations != null;
@@ -265,8 +269,11 @@ public class AtlasTools {
     }
 
     public static void loadWarpedAtlasAnnotations(AtlasOntology ontology, ImageData imageData, String atlasName, boolean splitLeftRight) {
-        imageData.getHierarchy().addPathObject(getWarpedAtlasRegions(ontology, imageData, atlasName, splitLeftRight));
-        imageData.getHierarchy().fireHierarchyChangedEvent(AtlasTools.class);
+        PathObject object = getWarpedAtlasRegions(ontology, imageData, atlasName, splitLeftRight);
+        if (object!=null) {
+            imageData.getHierarchy().addPathObject(object);
+            imageData.getHierarchy().fireHierarchyChangedEvent(AtlasTools.class);
+        }
     }
 
     private static MeasurementList duplicateMeasurements(MeasurementList measurements) {
@@ -305,6 +312,22 @@ public class AtlasTools {
         return atlasNames;
     }
 
+    public static RealTransform getAtlasToPixelTransform(ImageData imageData) {
+        String atlasName = getAvailableAtlasRegistration(imageData).get(0);
+        return getAtlasToPixelTransform(imageData, atlasName); // Needs the inverse transform
+    }
+
+    public static RealTransform getAtlasToPixelTransform(ImageData imageData, String atlasName) {
+        Project project = qupath.getProject();
+        ProjectImageEntry entry = project.getEntry(imageData);
+        File fTransform = new File(entry.getEntryPath().toString(),"ABBA-Transform-"+atlasName+".json");
+        if (!fTransform.exists()) {
+            logger.error("ABBA transformation file not found for entry "+entry);
+            return null;
+        }
+        return Warpy.getRealTransform(fTransform); // Needs the inverse transform
+    }
+
     public static Set<String> getNamingProperties(AtlasOntology ontology) {
         return ontology.getRoot().data().keySet();
     }
@@ -323,6 +346,11 @@ public class AtlasTools {
 
         Path ontologyPath = Paths.get(Projects.getBaseDirectory(qupath.getProject()).getAbsolutePath(), atlasName+"-Ontology.json");
         AtlasOntology ontology = AtlasHelper.openOntologyFromJsonFile(ontologyPath.toString());
+
+        if (ontology == null) {
+            logger.warn("Missing ontology for atlas "+atlasName+". No file present in path "+ontologyPath);
+            return;
+        }
 
         Set<String> namingProperties = AtlasTools.getNamingProperties(ontology);
 
