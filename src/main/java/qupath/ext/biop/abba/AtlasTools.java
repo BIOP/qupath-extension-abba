@@ -1,6 +1,9 @@
 package qupath.ext.biop.abba;
 
 import ij.gui.Roi;
+import net.imglib2.realtransform.AffineTransform3D;
+import net.imglib2.realtransform.InvertibleRealTransform;
+import net.imglib2.realtransform.InvertibleRealTransformSequence;
 import net.imglib2.realtransform.RealTransform;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -325,7 +328,54 @@ public class AtlasTools {
             logger.error("ABBA transformation file not found for entry "+entry);
             return null;
         }
-        return Warpy.getRealTransform(fTransform); // Needs the inverse transform
+        RealTransform transformWithoutServerTransform = Warpy.getRealTransform(fTransform);
+
+        // Rotation for rotated servers
+        ImageServer<?> server = imageData.getServer();
+
+        AffineTransform3D transform = new AffineTransform3D();
+
+        if (server instanceof RotatedImageServer) {
+            // The roi will need to be transformed before being imported
+            // First : get the rotation
+            RotatedImageServer ris = (RotatedImageServer) server;
+            switch (ris.getRotation()) {
+                case ROTATE_NONE: // No rotation.
+                    break;
+                case ROTATE_90:
+                    // Rotate 90 degrees clockwise.
+                    transform.set(new double[]{
+                            0.0,-1.0, 0.0, server.getWidth(),
+                            1.0, 0.0, 0.0, 0.0,
+                            0.0, 0.0, 1.0, 0.0
+                    });
+                    break;
+                case ROTATE_180: // Rotate 180 degrees.
+                    transform.set(new double[]{
+                           -1.0, 0.0, 0.0, server.getWidth(),
+                            0.0,-1.0, 0.0, server.getHeight(),
+                            0.0, 0.0, 1.0, 0.0
+                    });
+                    break;
+                case ROTATE_270: // Rotate 270 degrees
+                    // Rotate 90 degrees clockwise.
+                    transform.set(new double[]{
+                            0.0, 1.0, 0.0, 0.0,
+                           -1.0, 0.0, 0.0, server.getHeight(),
+                            0.0, 0.0, 1.0, 0.0
+                    });
+                    break;
+                default:
+                    System.err.println("Unknown rotation for rotated image server: "+ris.getRotation());
+            }
+        }
+
+        InvertibleRealTransformSequence irts = new InvertibleRealTransformSequence();
+        irts.add((InvertibleRealTransform) transformWithoutServerTransform);
+        irts.add(transform);
+
+        return irts;
+
     }
 
     public static Set<String> getNamingProperties(AtlasOntology ontology) {
