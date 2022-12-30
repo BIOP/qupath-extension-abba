@@ -23,10 +23,10 @@ description = "QuPath extension to use Aligning Big Brain and Atlases"
 
 group = "ch.epfl.biop"
 // artifact = "qupath-extension-abba"
-version = "0.1.5-SNAPSHOT"
+version = "0.2.0-SNAPSHOT"
 
 dependencies {
-    def qupathVersion = "0.3.0" // For now
+    def qupathVersion = "0.4.1"
 
     implementation("io.github.qupath:qupath-gui-fx:$qupathVersion")
     implementation("org.slf4j:slf4j-api:1.7.30")
