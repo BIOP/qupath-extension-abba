@@ -8,10 +8,10 @@ import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.dialogs.Dialogs;
 import qupath.lib.images.ImageData;
 import qupath.lib.plugins.workflow.DefaultScriptableWorkflowStep;
-import qupath.lib.plugins.workflow.Workflow;
 import qupath.lib.plugins.workflow.WorkflowStep;
 import qupath.lib.projects.Projects;
 
+import java.awt.image.BufferedImage;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
@@ -50,7 +50,7 @@ public class LoadAtlasRoisToQuPathCommand implements Runnable {
                 return;
         }
         if (doRun) {
-            ImageData imageData = qupath.getImageData();
+            ImageData<BufferedImage> imageData = qupath.getImageData();
             List<String> atlasNames = AtlasTools.getAvailableAtlasRegistration(imageData);
             if (atlasNames.size()==0) {
                 logger.error("No atlas registration found."); // TODO : show an error message for the user
