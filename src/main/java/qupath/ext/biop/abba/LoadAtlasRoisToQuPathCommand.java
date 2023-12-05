@@ -8,7 +8,6 @@ import qupath.lib.gui.QuPathGUI;
 import qupath.lib.gui.dialogs.Dialogs;
 import qupath.lib.images.ImageData;
 import qupath.lib.plugins.workflow.DefaultScriptableWorkflowStep;
-import qupath.lib.plugins.workflow.Workflow;
 import qupath.lib.plugins.workflow.WorkflowStep;
 import qupath.lib.projects.Projects;
 

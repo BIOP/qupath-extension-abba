@@ -10,7 +10,7 @@ import org.slf4j.LoggerFactory;
 import qupath.ext.biop.abba.struct.AtlasHelper;
 import qupath.ext.biop.abba.struct.AtlasNode;
 import qupath.ext.biop.abba.struct.AtlasOntology;
-import qupath.ext.biop.warpy.Warpy;
+import qupath.ext.warpy.Warpy;
 import qupath.imagej.tools.IJTools;
 import qupath.lib.common.ColorTools;
 import qupath.lib.gui.QuPathGUI;
