@@ -22,7 +22,7 @@ import qupath.lib.measurements.MeasurementListFactory;
 import qupath.lib.objects.PathObject;
 import qupath.lib.objects.PathObjectTools;
 import qupath.lib.objects.PathObjects;
-import qupath.lib.objects.classes.PathClassFactory;
+import qupath.lib.objects.classes.PathClass;
 import qupath.lib.projects.Project;
 import qupath.lib.roi.ROIs;
 import qupath.lib.roi.RoiTools;
@@ -30,6 +30,7 @@ import qupath.lib.roi.interfaces.ROI;
 import qupath.lib.scripting.QP;
 
 import java.awt.geom.AffineTransform;
+import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
@@ -45,15 +46,15 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 public class AtlasImporter {
-    private ImageData imageData;
+    private ImageData<BufferedImage> imageData;
     private String atlasName;
     private File roiFile;
     private String ontologyProperty;
-    private Project project;
+    private Project<BufferedImage> project;
     private boolean splitLeftRight;
     private AtlasOntology ontology;
 
-    public AtlasImporter(ImageData imageData) {
+    public AtlasImporter(ImageData<BufferedImage> imageData) {
         this.project = qupath.getProject();
         this.imageData = imageData;
     }
@@ -76,11 +77,11 @@ public class AtlasImporter {
     private static final QuPathGUI qupath = QuPathGUI.getInstance();
 
     public static class AtlasBuilder {
-        private ImageData imageData;
+        private ImageData<BufferedImage> imageData;
         private String ontologyProperty;
         private boolean splitLeftRight = true;
 
-        private AtlasBuilder(ImageData imageData) {
+        private AtlasBuilder(ImageData<BufferedImage> imageData) {
             this.imageData = imageData;
         }
 
@@ -145,14 +146,14 @@ public class AtlasImporter {
         }
     }
 
-    public static AtlasBuilder builder(ImageData imageData) {
+    public static AtlasBuilder builder(ImageData<BufferedImage> imageData) {
         return new AtlasBuilder(imageData);
     }
 
     public void loadWarpedAtlasAnnotations() {
 
         // Now we have all we need, the name whether to split left and right
-        imageData.getHierarchy().addPathObject(getWarpedAtlasRegions());
+        imageData.getHierarchy().addObject(getWarpedAtlasRegions());
         imageData.getHierarchy().fireHierarchyChangedEvent(AtlasTools.class);
     }
 
@@ -185,12 +186,12 @@ public class AtlasImporter {
             }
             rootObject = PathObjects.createAnnotationObject(rootFused);
             rootObject.setName("Root");
-            rootObject.setPathClass(PathClassFactory.getPathClass("Root"));
+            rootObject.setPathClass(PathClass.fromString("Root"));
             if (rootLeft != null) {
-                rootObject.addPathObject(rootLeft);
+                rootObject.addChildObject(rootLeft);
             }
             if (rootRight != null) {
-                rootObject.addPathObject(rootRight);
+                rootObject.addChildObject(rootRight);
             }
             return rootObject;
         } else {
@@ -275,17 +276,17 @@ public class AtlasImporter {
             object.setPathClass(QP.getPathClass(name));
 
             object.setName(name);
-            object.getMeasurementList().putMeasurement("ID", node.getId());
+            object.getMeasurementList().put("ID", node.getId());
 
             if (node.parent() != null) {
-                object.getMeasurementList().putMeasurement("Parent ID", node.parent().getId());
+                object.getMeasurementList().put("Parent ID", node.parent().getId());
             }
 
             // Get some aesthetics right
             object.setLocked(true);
             int[] rgba = node.getColor();
             int color = ColorTools.packRGB(rgba[0], rgba[1], rgba[2]);
-            object.setColorRGB(color);
+            object.setColor(color);
             return object;
 
         }).collect(Collectors.toList());
@@ -318,7 +319,7 @@ public class AtlasImporter {
                         PathObject objectLeft = PathObjects.createAnnotationObject(shapeLeft, annotation.getPathClass(), duplicateMeasurements(annotation.getMeasurementList()));
                         objectLeft.setName(annotation.getName());
                         objectLeft.setPathClass(QP.getDerivedPathClass(QP.getPathClass("Left"), annotation.getPathClass().getName()));
-                        objectLeft.setColorRGB(annotation.getColorRGB());
+                        objectLeft.setColor(annotation.getColor());
                         objectLeft.setLocked(true);
                         splitObjects.add(objectLeft);
                     }
@@ -330,7 +331,7 @@ public class AtlasImporter {
                         PathObject objectRight = PathObjects.createAnnotationObject(shapeRight, annotation.getPathClass(), duplicateMeasurements(annotation.getMeasurementList()));
                         objectRight.setName(annotation.getName());
                         objectRight.setPathClass(QP.getDerivedPathClass(QP.getPathClass("Right"), annotation.getPathClass().getName()));
-                        objectRight.setColorRGB(annotation.getColorRGB());
+                        objectRight.setColor(annotation.getColor());
                         objectRight.setLocked(true);
                         splitObjects.add(objectRight);
                     }
@@ -358,9 +359,9 @@ public class AtlasImporter {
             invertedTransform.apply(coordinates, coordinates);
 
             // Finally: Add the coordinates as measurements
-            ml.addMeasurement("Allen CCFv3 X mm", coordinates.getDoublePosition(0));
-            ml.addMeasurement("Allen CCFv3 Y mm", coordinates.getDoublePosition(1));
-            ml.addMeasurement("Allen CCFv3 Z mm", coordinates.getDoublePosition(2));
+            ml.put("Allen CCFv3 X mm", coordinates.getDoublePosition(0));
+            ml.put("Allen CCFv3 Y mm", coordinates.getDoublePosition(1));
+            ml.put("Allen CCFv3 Z mm", coordinates.getDoublePosition(2));
         });
     }
 
@@ -443,15 +444,15 @@ public class AtlasImporter {
                 annotations
                         .stream()
                         .collect(
-                                Collectors.toMap(e -> (int) (e.getMeasurementList().getMeasurementValue("ID")), e -> e)
+                                Collectors.toMap(e -> (int) (e.getMeasurementList().get("ID")), e -> e)
                         );
 
         AtomicReference<PathObject> rootReference = new AtomicReference<>();
 
         mappedAnnotations.forEach((id, annotation) -> {
-            PathObject parent = mappedAnnotations.get((int) annotation.getMeasurementList().getMeasurementValue("Parent ID"));
+            PathObject parent = mappedAnnotations.get((int) annotation.getMeasurementList().get("Parent ID"));
             if (parent != null) {
-                parent.addPathObject(annotation);
+                parent.addChildObject(annotation);
             } else {
                 System.out.println("No parent, id = " + id);
                 // Found the root Path Object
@@ -468,11 +469,11 @@ public class AtlasImporter {
         MeasurementList ml = object.getMeasurementList();
 
         // Get available information from ontology
-        Set<String> namingProperties = ontology.getRoot().data().keySet();
+        // Set<String> namingProperties = ontology.getRoot().data().keySet();
         AtlasNode node = ontology.getNodeFromId(object_id);
         node.data().forEach((key, value) -> {
             try {
-                ml.putMeasurement(key, Double.parseDouble(value));
+                ml.put(key, Double.parseDouble(value));
             } catch (NumberFormatException e) {
                 //HAHA so what?
             }
@@ -482,19 +483,18 @@ public class AtlasImporter {
     private MeasurementList duplicateMeasurements(MeasurementList measurements) {
         MeasurementList list = MeasurementListFactory.createMeasurementList(measurements.size(), MeasurementList.MeasurementListType.GENERAL);
 
-        for (int i = 0; i < measurements.size(); i++) {
-            String name = measurements.getMeasurementName(i);
-            double value = measurements.getMeasurementValue(i);
-            list.addMeasurement(name, value);
+        for (String name : measurements.getMeasurementNames()) {
+            double value = measurements.get(name);
+            list.put(name, value);
         }
         return list;
     }
 
-    private File getEntryFolder( ImageData imageData ) {
+    private File getEntryFolder( ImageData<BufferedImage> imageData ) {
         return qupath.getProject().getEntry(imageData).getEntryPath().toFile();
     }
 
-    private File getProjectFolder( ImageData imageData ) {
+    private File getProjectFolder( ImageData<BufferedImage> imageData ) {
         return new File( qupath.getProject().getPath().toFile().getParent() );
     }
 
