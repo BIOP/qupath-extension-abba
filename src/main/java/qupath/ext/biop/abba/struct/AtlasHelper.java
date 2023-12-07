@@ -22,7 +22,6 @@
 package qupath.ext.biop.abba.struct;
 
 import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 
 import java.io.*;
 import java.net.URL;
