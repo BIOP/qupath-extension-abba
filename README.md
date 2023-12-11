@@ -1,8 +1,3 @@
-# ABBA should be used with **QuPath 0.4.4**
-
-> [!WARNING]  
-> ABBA should be used with **QuPath 0.4.4** (or above). If you are using QuPath 0.4.0, 0.4.1, 0.4.2 or 0.4.3 you NEED TO UPDATE IT!
-
 # QuPath ABBA extension
 
 This repo adds some support for the [ABBA plugin](https://biop.github.io/ijp-imagetoatlas/) in QuPath.
