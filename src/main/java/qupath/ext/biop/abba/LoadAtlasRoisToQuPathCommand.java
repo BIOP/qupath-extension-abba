@@ -53,6 +53,7 @@ public class LoadAtlasRoisToQuPathCommand implements Runnable {
             ImageData<BufferedImage> imageData = qupath.getImageData();
             List<String> atlasNames = AtlasTools.getAvailableAtlasRegistration(imageData);
             if (atlasNames.size()==0) {
+                Dialogs.showErrorMessage("No atlas registration found.", "You need to export your registration from Fiji's ABBA plugin.");
                 logger.error("No atlas registration found."); // TODO : show an error message for the user
                 return;
             }
