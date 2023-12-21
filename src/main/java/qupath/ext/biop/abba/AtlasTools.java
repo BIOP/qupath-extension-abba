@@ -202,6 +202,9 @@ public class AtlasTools {
             // Get associated information
             AtlasNode node = ontology.getNodeFromId(object_id);
             String name = node.data().get(ontology.getNamingProperty());
+            if ((name == null) && (ontology.getNamingProperty().equals("ID"))) {
+                name = Integer.toString(object_id);
+            }
             object.setName(name);
             object.getMeasurementList().put("ID", node.getId());
             if (node.parent()!=null) {
