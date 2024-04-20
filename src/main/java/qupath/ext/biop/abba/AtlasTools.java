@@ -22,6 +22,8 @@ import qupath.lib.measurements.MeasurementListFactory;
 import qupath.lib.objects.PathObject;
 import qupath.lib.objects.PathObjectTools;
 import qupath.lib.objects.PathObjects;
+import qupath.lib.objects.classes.PathClass;
+import qupath.lib.objects.hierarchy.PathObjectHierarchy;
 import qupath.lib.projects.Project;
 import qupath.lib.projects.ProjectImageEntry;
 import qupath.lib.projects.Projects;
@@ -79,9 +81,9 @@ public class AtlasTools {
         return rootReference.get();
     }
 
-    static PathObject getWarpedAtlasRegions(AtlasOntology ontology, ImageData<BufferedImage> imageData, String atlasName, boolean splitLeftRight) {
+    static PathObject getWarpedAtlasRegions(AtlasOntology ontology, ImageData<BufferedImage> imageData, boolean splitLeftRight) {
 
-        List<PathObject> annotations = getFlattenedWarpedAtlasRegions(ontology, imageData, atlasName, splitLeftRight);
+        List<PathObject> annotations = getFlattenedWarpedAtlasRegions(ontology, imageData, splitLeftRight);
 
         if (annotations == null) return null;
 
@@ -125,12 +127,13 @@ public class AtlasTools {
 
     }
 
-    public static List<PathObject> getFlattenedWarpedAtlasRegions(AtlasOntology ontology, ImageData<BufferedImage> imageData, String atlasName, boolean splitLeftRight) {
+    public static List<PathObject> getFlattenedWarpedAtlasRegions(AtlasOntology ontology, ImageData<BufferedImage> imageData, boolean splitLeftRight) {
         Project<BufferedImage> project = qupath.getProject();
 
         // Loop through each ImageEntry
         ProjectImageEntry<BufferedImage> entry = project.getEntry(imageData);
 
+        String atlasName = ontology.getName();
         Path roisetPath = Paths.get(entry.getEntryPath().toString(), "ABBA-RoiSet-"+atlasName+".zip");
         if (!Files.exists(roisetPath)) {
             logger.info("No RoiSets found in {}", roisetPath);
@@ -275,12 +278,33 @@ public class AtlasTools {
         }
     }
 
-    public static void loadWarpedAtlasAnnotations(AtlasOntology ontology, ImageData<BufferedImage> imageData, String atlasName, boolean splitLeftRight) {
-        PathObject object = getWarpedAtlasRegions(ontology, imageData, atlasName, splitLeftRight);
-        if (object!=null) {
-            imageData.getHierarchy().addObject(object);
-            imageData.getHierarchy().fireHierarchyChangedEvent(AtlasTools.class);
+    @Deprecated
+    public static List<PathObject> getFlattenedWarpedAtlasRegions(AtlasOntology ontology, ImageData<BufferedImage> imageData, String atlasName, boolean splitLeftRight) {
+        return getFlattenedWarpedAtlasRegions(ontology, imageData, splitLeftRight);
+    }
+
+    public static PathObject loadWarpedAtlasAnnotations(AtlasOntology ontology, ImageData<BufferedImage> imageData, boolean splitLeftRight, boolean overwrite) {
+        PathObject atlasRoot = getWarpedAtlasRegions(ontology, imageData, splitLeftRight);
+        if (atlasRoot!=null) {
+            PathObjectHierarchy hierarchy = imageData.getHierarchy();
+            PathClass atlasClass = QP.getPathClass(ontology.getName());
+            List<PathObject> previousAtlases = QP.getAnnotationObjects()
+                    .stream()
+                    .filter(o -> o.getName().equals("Root") && o.getPathClass() != null && o.getPathClass().equals(atlasClass))
+                    .toList();
+            if (overwrite && !previousAtlases.isEmpty())
+                hierarchy.removeObjects(previousAtlases, false);
+            atlasRoot.setPathClass(atlasClass);
+            hierarchy.addObject(atlasRoot);
+            atlasRoot.setLocked(true);
+            hierarchy.fireHierarchyChangedEvent(AtlasTools.class);
         }
+        return atlasRoot;
+    }
+
+    @Deprecated
+    public static void loadWarpedAtlasAnnotations(AtlasOntology ontology, ImageData<BufferedImage> imageData, String atlasName, boolean splitLeftRight) {
+        loadWarpedAtlasAnnotations(ontology, imageData, splitLeftRight, false);
     }
 
     private static MeasurementList duplicateMeasurements(MeasurementList measurements) {
@@ -385,11 +409,11 @@ public class AtlasTools {
         return ontology.getRoot().data().keySet();
     }
 
-    public static void loadWarpedAtlasAnnotations(ImageData<BufferedImage> imageData, String namingProperty, boolean splitLeftRight) {
+    public static PathObject loadWarpedAtlasAnnotations(ImageData<BufferedImage> imageData, String namingProperty, boolean splitLeftRight, boolean overwrite) {
         List<String> atlasNames = AtlasTools.getAvailableAtlasRegistration(imageData);
-        if (atlasNames.size()==0) {
+        if (atlasNames.isEmpty()) {
             logger.error("No atlas registration found."); // TODO : show an error message for the user
-            return;
+            return null;
         }
 
         String atlasName = atlasNames.get(0);
@@ -402,19 +426,24 @@ public class AtlasTools {
 
         if (ontology == null) {
             logger.warn("Missing ontology for atlas "+atlasName+". No file present in path "+ontologyPath);
-            return;
+            return null;
         }
 
         Set<String> namingProperties = AtlasTools.getNamingProperties(ontology);
 
         if ( !namingProperties.contains( namingProperty ) ) {
             logger.error("Ontology Name Property {} not found.\nAvailable properties are:  {}", namingProperty, namingProperties.toString());
-            return;
+            return null;
         }
 
         ontology.setNamingProperty(namingProperty);
 
         // Now we have all we need, the name whether to split left and right
-        AtlasTools.loadWarpedAtlasAnnotations(ontology, imageData, atlasName, splitLeftRight);
+        return loadWarpedAtlasAnnotations(ontology, imageData, splitLeftRight, overwrite);
+    }
+
+    @Deprecated
+    public static void loadWarpedAtlasAnnotations(ImageData<BufferedImage> imageData, String namingProperty, boolean splitLeftRight) {
+        loadWarpedAtlasAnnotations(imageData, namingProperty, splitLeftRight, false);
     }
 }

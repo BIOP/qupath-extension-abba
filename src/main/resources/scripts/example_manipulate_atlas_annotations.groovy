@@ -7,8 +7,6 @@
  *  - have exported the registration result of the image in ABBA (in Fiji)
  *  - have some cells already detected on this opened image
  *
- * TODO : Display a warning message if several atlases are found (Allen v3 and Allen v3.1)	
- *
  * This script is not supposed to work in one block. Just copy paste in another script the parts you need
  */
 
@@ -23,12 +21,15 @@ removeObjects(getAnnotationObjects(), false) // last argument = keep child objec
 
 // 3. To import the atlas regions (take care to not import it several times: clear the objects before)
 // Load atlas and name all regions according with their acronym
-// Last argument = split left and right regions
-qupath.ext.biop.abba.AtlasTools.loadWarpedAtlasAnnotations(getCurrentImageData(), "acronym", true);
+// Last two arguments:
+//   * split left and right regions
+//   * overwrite the previously imported atlas annotations, if present and new and old atlas versions match
+def atlasRoot = qupath.ext.biop.abba.AtlasTools.loadWarpedAtlasAnnotations(getCurrentImageData(), "acronym", true, true);
+def allRegions = atlasRoot.getDescendantObjects(null)
 
 // 4. To collect and select a subregion (here the only with the acronym ‘CTXpl’)
 // Gets all annotations (=regions) named CTXpl (left and right)
-def myObjects = getAllObjects().findAll{it.getName() == 'CTXpl'} // replace 'CTXpl' by any region acronym existing in the atlas
+def myObjects = allRegions.findAll{it.getName() == 'CTXpl'} // replace 'CTXpl' by any region acronym existing in the atlas
 
 // Then select them
 selectObjects(myObjects)
@@ -36,11 +37,11 @@ selectObjects(myObjects)
 // 5. same as 4., but restricting to the left part of the brain
 
 // Gets all annotations named CTXpl in the left region:
-def myLeftObjects = getAnnotationObjects()
+def myLeftObjects = allRegions
                 .findAll{it.getName() == 'CTXpl'} // replace 'CTXpl' by any region acronym existing in the atlas
                 .findAll{it.getPathClass().isDerivedFrom(getPathClass('Left'))} // select only the ones in the left regions
 
-// Then select them      
+// Then select them
 selectObjects(myLeftObjects)
 
 // 6. to collect and select subregions from a list
@@ -49,18 +50,18 @@ selectObjects(myLeftObjects)
 listOfRegionsToSelect=['MPN', 'CTXsp', 'ACAd']
 
 
-def myObjectsWithinAList = getAnnotationObjects()
+def myObjectsWithinAList = allRegions
                 .findAll{it.getName() in listOfRegionsToSelect}
                 //.findAll{it.getPathClass().isDerivedFrom(getPathClass('Left'))} // Uncomment this line to get only the objects in the left region
 
-// Then select them             
+// Then select them
 selectObjects(myObjectsWithinAList)
 
 // 7. to collect all regions except the ones on a list
 
-def myObjectsWithinAList = getAnnotationObjects()
+def myObjectsWithinAList = allRegions
                 .findAll{!(it.getPathClass() == null)} // removes null objects
-                .findAll{it.getPathClass().isDerivedFrom(getPathClass('Left'))} 
+                .findAll{it.getPathClass().isDerivedFrom(getPathClass('Left'))}
 
 // Gets all annotations except the ones of a list
 def objectsOtherThan = getAnnotationObjects() - myObjectsWithinAList

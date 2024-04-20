@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory;
 import qupath.ext.biop.abba.struct.AtlasHelper;
 import qupath.ext.biop.abba.struct.AtlasOntology;
 import qupath.lib.gui.QuPathGUI;
-import qupath.lib.gui.dialogs.Dialogs;
+import qupath.fx.dialogs.Dialogs;
 import qupath.lib.images.ImageData;
 import qupath.lib.plugins.workflow.DefaultScriptableWorkflowStep;
 import qupath.lib.plugins.workflow.WorkflowStep;
@@ -52,7 +52,7 @@ public class LoadAtlasRoisToQuPathCommand implements Runnable {
         if (doRun) {
             ImageData<BufferedImage> imageData = qupath.getImageData();
             List<String> atlasNames = AtlasTools.getAvailableAtlasRegistration(imageData);
-            if (atlasNames.size()==0) {
+            if (atlasNames.isEmpty()) {
                 Dialogs.showErrorMessage("No atlas registration found.", "You need to export your registration from Fiji's ABBA plugin.");
                 logger.error("No atlas registration found."); // TODO : show an error message for the user
                 return;
@@ -76,10 +76,10 @@ public class LoadAtlasRoisToQuPathCommand implements Runnable {
             ontology.setNamingProperty(namingProperty);
 
             // Now we have all we need, the name whether to split left and right
-            AtlasTools.loadWarpedAtlasAnnotations(ontology, imageData, atlasName, splitLeftRight);
+            AtlasTools.loadWarpedAtlasAnnotations(ontology, imageData, splitLeftRight, true);
 
             // Add a step to the workflow
-            String method = AtlasTools.class.getName()+".loadWarpedAtlasAnnotations(getCurrentImageData(), \""+namingProperty+"\", "+splitLeftRight+");";
+            String method = AtlasTools.class.getName()+".loadWarpedAtlasAnnotations(getCurrentImageData(), \""+namingProperty+"\", "+splitLeftRight+", true);";
             WorkflowStep newStep = new DefaultScriptableWorkflowStep("Load Brain RoiSets into Image", method);
             imageData.getHistoryWorkflow().addStep(newStep);
         }
