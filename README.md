@@ -1,6 +1,6 @@
 # QuPath ABBA extension
 
-This repo adds some support for the [ABBA plugin](https://biop.github.io/ijp-imagetoatlas/) in QuPath.
+This repo adds some support for the [ABBA plugin](https://abba-documentation.readthedocs.io/en/latest/) in QuPath.
 
 ## Installing
 
