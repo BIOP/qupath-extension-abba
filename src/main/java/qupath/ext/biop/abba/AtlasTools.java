@@ -290,7 +290,7 @@ public class AtlasTools {
             PathClass atlasClass = QP.getPathClass(ontology.getName());
             List<PathObject> previousAtlases = QP.getAnnotationObjects()
                     .stream()
-                    .filter(o -> o.getName().equals("Root") && o.getPathClass() != null && o.getPathClass().equals(atlasClass))
+                    .filter(o -> "Root".equals(o.getName()) && o.getPathClass() != null && o.getPathClass().equals(atlasClass))
                     .toList();
             if (overwrite && !previousAtlases.isEmpty())
                 hierarchy.removeObjects(previousAtlases, false);
