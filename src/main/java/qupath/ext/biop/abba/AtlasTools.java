@@ -52,8 +52,6 @@ public class AtlasTools {
 
     final static Logger logger = LoggerFactory.getLogger(AtlasTools.class);
 
-    private static final QuPathGUI qupath = QuPathGUI.getInstance();
-
     static private PathObject createAnnotationHierarchy(List<PathObject> annotations) {
 
         // Map the ID of the annotation to ease finding parents
@@ -128,7 +126,7 @@ public class AtlasTools {
     }
 
     public static List<PathObject> getFlattenedWarpedAtlasRegions(AtlasOntology ontology, ImageData<BufferedImage> imageData, boolean splitLeftRight) {
-        Project<BufferedImage> project = qupath.getProject();
+        Project<BufferedImage> project = QP.getProject();
 
         // Loop through each ImageEntry
         ProjectImageEntry<BufferedImage> entry = project.getEntry(imageData);
@@ -318,7 +316,7 @@ public class AtlasTools {
     }
 
     public static List<String> getAvailableAtlasRegistration(ImageData<BufferedImage> imageData) {
-        Project<BufferedImage> project = qupath.getProject();
+        Project<BufferedImage> project = QP.getProject();
         ProjectImageEntry<BufferedImage> entry = project.getEntry(imageData);
 
         List<String> atlasNames = new ArrayList<>();
@@ -348,7 +346,7 @@ public class AtlasTools {
     }
 
     public static RealTransform getAtlasToPixelTransform(ImageData<BufferedImage> imageData, String atlasName) {
-        Project<BufferedImage> project = qupath.getProject();
+        Project<BufferedImage> project = QP.getProject();
         ProjectImageEntry<BufferedImage> entry = project.getEntry(imageData);
         File fTransform = new File(entry.getEntryPath().toString(),"ABBA-Transform-"+atlasName+".json");
         if (!fTransform.exists()) {
@@ -421,7 +419,7 @@ public class AtlasTools {
             logger.warn("Several atlases registration have been found. Importing atlas: "+atlasName);
         }
 
-        Path ontologyPath = Paths.get(Projects.getBaseDirectory(qupath.getProject()).getAbsolutePath(), atlasName+"-Ontology.json");
+        Path ontologyPath = Paths.get(Projects.getBaseDirectory(QP.getProject()).getAbsolutePath(), atlasName+"-Ontology.json");
         AtlasOntology ontology = AtlasHelper.openOntologyFromJsonFile(ontologyPath.toString());
 
         if (ontology == null) {
