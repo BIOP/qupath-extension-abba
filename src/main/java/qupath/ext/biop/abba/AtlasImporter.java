@@ -55,7 +55,7 @@ public class AtlasImporter {
     private AtlasOntology ontology;
 
     public AtlasImporter(ImageData<BufferedImage> imageData) {
-        this.project = qupath.getProject();
+        this.project = QP.getProject();
         this.imageData = imageData;
     }
 
@@ -73,8 +73,6 @@ public class AtlasImporter {
     }
 
     final static Logger logger = LoggerFactory.getLogger(AtlasImporter.class);
-
-    private static final QuPathGUI qupath = QuPathGUI.getInstance();
 
     public static class AtlasBuilder {
         private ImageData<BufferedImage> imageData;
@@ -491,11 +489,11 @@ public class AtlasImporter {
     }
 
     private File getEntryFolder( ImageData<BufferedImage> imageData ) {
-        return qupath.getProject().getEntry(imageData).getEntryPath().toFile();
+        return QP.getProject().getEntry(imageData).getEntryPath().toFile();
     }
 
     private File getProjectFolder( ImageData<BufferedImage> imageData ) {
-        return new File( qupath.getProject().getPath().toFile().getParent() );
+        return new File( QP.getProject().getPath().toFile().getParent() );
     }
 
 
