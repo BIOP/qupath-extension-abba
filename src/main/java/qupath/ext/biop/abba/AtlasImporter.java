@@ -16,6 +16,8 @@ import qupath.lib.common.ColorTools;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.ImageServer;
+import qupath.lib.images.servers.ImageServerBuilder;
+import qupath.lib.images.servers.ImageServerMetadata;
 import qupath.lib.images.servers.RotatedImageServer;
 import qupath.lib.measurements.MeasurementList;
 import qupath.lib.measurements.MeasurementListFactory;
@@ -35,6 +37,7 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
@@ -107,7 +110,7 @@ public class AtlasImporter {
 
             loader.roiFile = loader.getAtlasRoiFile();
             if( !loader.roiFile.exists()) {
-                logger.warn("No RoiSet file associated to image {} and Atlas {} found", imageData.getServer().getMetadata().getName(), loader.atlasName);
+                logger.warn("No RoiSet file associated to image {} and Atlas {} found", imageData.getServerMetadata().getName(), loader.atlasName);
             }
 
             // Load Ontology
@@ -224,32 +227,38 @@ public class AtlasImporter {
         rois.remove(left);
         rois.remove(right);
 
-        // Rotation for rotated servers
-        ImageServer<?> server = imageData.getServer();
-
         AffineTransform transform = null;
 
-        if (server instanceof RotatedImageServer) {
+        ImageServerBuilder.ServerBuilder<?> serverBuilder = imageData.getServerBuilder();
+        if (serverBuilder.getClass().getSimpleName().startsWith("Rotated")) {
             // The roi will need to be transformed before being imported
             // First : get the rotation
-            RotatedImageServer ris = (RotatedImageServer) server;
-            switch (ris.getRotation()) {
+            RotatedImageServer.Rotation rotation = null;
+            try {
+                Field rotationField = serverBuilder.getClass().getDeclaredField("rotation");
+                rotationField.setAccessible(true);
+                rotation = (RotatedImageServer.Rotation) rotationField.get(serverBuilder);
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                throw new RuntimeException("Unknown rotated ImageServerBuilder: "+serverBuilder.getClass());
+            }
+            ImageServerMetadata metadata = imageData.getServerMetadata();
+            switch (rotation) {
                 case ROTATE_NONE: // No rotation.
                     break;
                 case ROTATE_90: // Rotate 90 degrees clockwise.
                     transform = AffineTransform.getRotateInstance(Math.PI / 2.0);
-                    transform.translate(0, -server.getWidth());
+                    transform.translate(0, -metadata.getWidth());
                     break;
                 case ROTATE_180: // Rotate 180 degrees.
                     transform = AffineTransform.getRotateInstance(Math.PI);
-                    transform.translate(-server.getWidth(), -server.getHeight());
+                    transform.translate(-metadata.getWidth(), -metadata.getHeight());
                     break;
                 case ROTATE_270: // Rotate 270 degrees
                     transform = AffineTransform.getRotateInstance(Math.PI * 3.0 / 2.0);
-                    transform.translate(-server.getHeight(), 0);
+                    transform.translate(-metadata.getHeight(), 0);
                     break;
                 default:
-                    System.err.println("Unknown rotation for rotated image server: " + ris.getRotation());
+                    System.err.println("Unknown rotation for rotated image server: " + rotation);
             }
         }
 
