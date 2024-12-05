@@ -13,9 +13,7 @@ import qupath.ext.biop.abba.struct.AtlasOntology;
 import qupath.ext.warpy.Warpy;
 import qupath.imagej.tools.IJTools;
 import qupath.lib.common.ColorTools;
-import qupath.lib.gui.QuPathGUI;
 import qupath.lib.images.ImageData;
-import qupath.lib.images.servers.ImageServer;
 import qupath.lib.images.servers.ImageServerBuilder;
 import qupath.lib.images.servers.ImageServerMetadata;
 import qupath.lib.images.servers.RotatedImageServer;
@@ -37,16 +35,19 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import static qupath.ext.biop.abba.AtlasTools.getLazyNestedBuilders;
+import static qupath.ext.biop.abba.AtlasTools.getLazyRotation;
 
 public class AtlasImporter {
     private ImageData<BufferedImage> imageData;
@@ -228,21 +229,14 @@ public class AtlasImporter {
         rois.remove(right);
 
         AffineTransform transform = null;
-
-        ImageServerBuilder.ServerBuilder<?> serverBuilder = imageData.getServerBuilder();
-        if (serverBuilder.getClass().getSimpleName().startsWith("Rotated")) {
+        for (ImageServerBuilder.ServerBuilder<?> serverBuilder: getLazyNestedBuilders(imageData)) {
             // The roi will need to be transformed before being imported
-            // First : get the rotation
-            RotatedImageServer.Rotation rotation = null;
-            try {
-                Field rotationField = serverBuilder.getClass().getDeclaredField("rotation");
-                rotationField.setAccessible(true);
-                rotation = (RotatedImageServer.Rotation) rotationField.get(serverBuilder);
-            } catch (NoSuchFieldException | IllegalAccessException e) {
-                throw new RuntimeException("Unknown rotated ImageServerBuilder: "+serverBuilder.getClass());
-            }
+            Optional<RotatedImageServer.Rotation> rotation;
+            if ((rotation = getLazyRotation(serverBuilder)).isEmpty())
+                // the server is not rotated
+                continue;
             ImageServerMetadata metadata = imageData.getServerMetadata();
-            switch (rotation) {
+            switch (rotation.get()) {
                 case ROTATE_NONE: // No rotation.
                     break;
                 case ROTATE_90: // Rotate 90 degrees clockwise.
@@ -258,7 +252,7 @@ public class AtlasImporter {
                     transform.translate(-metadata.getHeight(), 0);
                     break;
                 default:
-                    System.err.println("Unknown rotation for rotated image server: " + rotation);
+                    System.err.println("Unknown rotation for rotated image server: " + rotation.get());
             }
         }
 
