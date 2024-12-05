@@ -16,6 +16,8 @@ import qupath.lib.common.ColorTools;
 import qupath.lib.gui.QuPathGUI;
 import qupath.lib.images.ImageData;
 import qupath.lib.images.servers.ImageServer;
+import qupath.lib.images.servers.ImageServerBuilder;
+import qupath.lib.images.servers.ImageServerMetadata;
 import qupath.lib.images.servers.RotatedImageServer;
 import qupath.lib.measurements.MeasurementList;
 import qupath.lib.measurements.MeasurementListFactory;
@@ -36,6 +38,7 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -158,32 +161,38 @@ public class AtlasTools {
         rois.remove(left);
         rois.remove(right);
 
-        // Rotation for rotated servers
-        ImageServer<?> server = imageData.getServer();
 
         AffineTransform transform = null;
-
-        if (server instanceof RotatedImageServer) {
+        ImageServerBuilder.ServerBuilder<?> serverBuilder = imageData.getServerBuilder();
+        if (serverBuilder.getClass().getSimpleName().startsWith("Rotated")) {
             // The roi will need to be transformed before being imported
             // First : get the rotation
-            RotatedImageServer ris = (RotatedImageServer) server;
-            switch (ris.getRotation()) {
+            RotatedImageServer.Rotation rotation = null;
+            try {
+                Field rotationField = serverBuilder.getClass().getDeclaredField("rotation");
+                rotationField.setAccessible(true);
+                rotation = (RotatedImageServer.Rotation) rotationField.get(serverBuilder);
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                throw new RuntimeException("Unknown rotated ImageServerBuilder: "+serverBuilder.getClass());
+            }
+            ImageServerMetadata metadata = imageData.getServerMetadata();
+                switch (rotation) {
                 case ROTATE_NONE: // No rotation.
                     break;
                 case ROTATE_90: // Rotate 90 degrees clockwise.
                     transform = AffineTransform.getRotateInstance(Math.PI/2.0);
-                    transform.translate(0, -server.getWidth());
+                    transform.translate(0, -metadata.getWidth());
                     break;
                 case ROTATE_180: // Rotate 180 degrees.
                     transform = AffineTransform.getRotateInstance(Math.PI);
-                    transform.translate(-server.getWidth(), -server.getHeight());
+                    transform.translate(-metadata.getWidth(), -metadata.getHeight());
                     break;
                 case ROTATE_270: // Rotate 270 degrees
                     transform = AffineTransform.getRotateInstance(Math.PI*3.0/2.0);
-                    transform.translate(-server.getHeight(), 0);
+                    transform.translate(-metadata.getHeight(), 0);
                     break;
                 default:
-                    System.err.println("Unknown rotation for rotated image server: "+ris.getRotation());
+                    System.err.println("Unknown rotation for rotated image server: " + rotation);
             }
         }
 
@@ -355,30 +364,36 @@ public class AtlasTools {
         }
         RealTransform transformWithoutServerTransform = Warpy.getRealTransform(fTransform);
 
-        // Rotation for rotated servers
-        ImageServer<?> server = imageData.getServer();
-
         AffineTransform3D transform = new AffineTransform3D();
 
-        if (server instanceof RotatedImageServer) {
+        ImageServerBuilder.ServerBuilder<?> serverBuilder = imageData.getServerBuilder();
+        if (serverBuilder.getClass().getSimpleName().startsWith("Rotated")) {
             // The roi will need to be transformed before being imported
             // First : get the rotation
-            RotatedImageServer ris = (RotatedImageServer) server;
-            switch (ris.getRotation()) {
+            RotatedImageServer.Rotation rotation = null;
+            try {
+                Field rotationField = serverBuilder.getClass().getDeclaredField("rotation");
+                rotationField.setAccessible(true);
+                rotation = (RotatedImageServer.Rotation) rotationField.get(serverBuilder);
+            } catch (NoSuchFieldException | IllegalAccessException e) {
+                throw new RuntimeException("Unknown rotated ImageServerBuilder: "+serverBuilder.getClass());
+            }
+            ImageServerMetadata metadata = imageData.getServerMetadata();
+            switch (rotation) {
                 case ROTATE_NONE: // No rotation.
                     break;
                 case ROTATE_90:
                     // Rotate 90 degrees clockwise.
                     transform.set(new double[]{
-                            0.0,-1.0, 0.0, server.getWidth(),
+                            0.0,-1.0, 0.0, metadata.getWidth(),
                             1.0, 0.0, 0.0, 0.0,
                             0.0, 0.0, 1.0, 0.0
                     });
                     break;
                 case ROTATE_180: // Rotate 180 degrees.
                     transform.set(new double[]{
-                           -1.0, 0.0, 0.0, server.getWidth(),
-                            0.0,-1.0, 0.0, server.getHeight(),
+                           -1.0, 0.0, 0.0, metadata.getWidth(),
+                            0.0,-1.0, 0.0, metadata.getHeight(),
                             0.0, 0.0, 1.0, 0.0
                     });
                     break;
@@ -386,12 +401,12 @@ public class AtlasTools {
                     // Rotate 90 degrees clockwise.
                     transform.set(new double[]{
                             0.0, 1.0, 0.0, 0.0,
-                           -1.0, 0.0, 0.0, server.getHeight(),
+                           -1.0, 0.0, 0.0, metadata.getHeight(),
                             0.0, 0.0, 1.0, 0.0
                     });
                     break;
                 default:
-                    System.err.println("Unknown rotation for rotated image server: "+ris.getRotation());
+                    System.err.println("Unknown rotation for rotated image server: " + rotation);
             }
         }
 
