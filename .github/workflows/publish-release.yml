@@ -14,12 +14,12 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-java@v2
         with:
-          java-version: '11'
+          java-version: '21'
           distribution: 'adopt-hotspot'
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
       - name: Publish package
-        run: ./gradlew publish -P toolchain=11 -P release=true
+        run: ./gradlew publish -P toolchain=21 -P release=true
         env:
           MAVEN_USER: ${{ secrets.MAVEN_USER }}
           MAVEN_PASS: ${{ secrets.MAVEN_PASS }}
