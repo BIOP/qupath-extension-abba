@@ -53,7 +53,7 @@ public class LoadAtlasRoisToQuPathCommand implements Runnable {
             ImageData<BufferedImage> imageData = qupath.getImageData();
             List<String> atlasNames = AtlasTools.getAvailableAtlasRegistration(imageData);
             if (atlasNames.isEmpty()) {
-                Dialogs.showErrorMessage("No atlas registration found.", "You need to export your registration from Fiji's ABBA plugin.");
+                Dialogs.showErrorMessage("No atlas registration found.", "You first need to export your registration from Fiji's ABBA plugin.");
                 logger.error("No atlas registration found."); // TODO : show an error message for the user
                 return;
             }
@@ -65,6 +65,13 @@ public class LoadAtlasRoisToQuPathCommand implements Runnable {
 
             Path ontologyPath = Paths.get(Projects.getBaseDirectory(qupath.getProject()).getAbsolutePath(), atlasName+"-Ontology.json");
             AtlasOntology ontology = AtlasHelper.openOntologyFromJsonFile(ontologyPath.toString());
+            if (ontology == null) {
+                Dialogs.showErrorMessage("No atlas ontology found.",
+                        "Can't find the ontology corresponding to the atlas registration of the image."+
+                                "You first need to export your registration from Fiji's ABBA plugin.");
+                logger.error("No atlas ontology found."); // TODO : show an error message for the user
+                return;
+            }
 
             // Get naming possibilities
             String namingProperty =

@@ -85,8 +85,8 @@ public class AtlasTools {
 
         if (annotations == null) return null;
 
+        PathObject atlasRoot;
         if (splitLeftRight) {
-            assert annotations != null;
             List<PathObject> annotationsLeft = annotations
                     .stream()
                     .filter(po -> po.getPathClass().isDerivedFrom(QP.getPathClass("Left")))
@@ -100,29 +100,30 @@ public class AtlasTools {
             PathObject rootLeft = createAnnotationHierarchy(annotationsLeft);
             PathObject rootRight = createAnnotationHierarchy(annotationsRight);
             ROI rootFused;
-            PathObject rootObject;
             if ((rootLeft!=null)&&(rootRight!=null)) {
                 rootFused = RoiTools.combineROIs(rootLeft.getROI(), rootRight.getROI(), RoiTools.CombineOp.ADD);
             } else if (rootLeft==null) {
                 rootFused = RoiTools.combineROIs(ROIs.createEmptyROI(), rootRight.getROI(), RoiTools.CombineOp.ADD);
-            } else {
-                assert rootRight==null;
+            } else { // rootRight == null
                 rootFused = RoiTools.combineROIs(rootLeft.getROI(), ROIs.createEmptyROI(), RoiTools.CombineOp.ADD);
             }
-            rootObject = PathObjects.createAnnotationObject(rootFused);
-            rootObject.setName("Root");
+            atlasRoot = PathObjects.createAnnotationObject(rootFused);
             if (rootLeft!=null) {
-                rootObject.addChildObject(rootLeft);
+                atlasRoot.addChildObject(rootLeft);
             }
             if (rootRight!=null) {
-                rootObject.addChildObject(rootRight);
+                atlasRoot.addChildObject(rootRight);
             }
-            return rootObject; // TODO
         } else {
-            assert annotations != null;
-            return createAnnotationHierarchy(annotations);
+            PathObject root = createAnnotationHierarchy(annotations);
+            if (root==null)
+                return null;
+            atlasRoot = PathObjects.createAnnotationObject(root.getROI());
+            atlasRoot.addChildObject(root);
         }
-
+        atlasRoot.setName("Root");
+        atlasRoot.setLocked(true);
+        return atlasRoot;
     }
 
     public static List<PathObject> getFlattenedWarpedAtlasRegions(AtlasOntology ontology, ImageData<BufferedImage> imageData, boolean splitLeftRight) {
@@ -294,7 +295,6 @@ public class AtlasTools {
                 hierarchy.removeObjects(previousAtlases, false);
             atlasRoot.setPathClass(atlasClass);
             hierarchy.addObject(atlasRoot);
-            atlasRoot.setLocked(true);
             hierarchy.fireHierarchyChangedEvent(AtlasTools.class);
         }
         return atlasRoot;
