@@ -1,6 +1,6 @@
 # QuPath ABBA extension
 
-This repo adds some support for the [ABBA plugin](https://abba-documentation.readthedocs.io/en/latest/) in QuPath.
+This repo adds some support for the [ABBA plugin](https://go.epfl.ch/abba) in QuPath.
 
 ## Installing
 
@@ -13,7 +13,11 @@ You might then need to restart QuPath (but not your computer).
 
 ## Citing
 
-TODO
+If you use ABBA in your work, please cite the paper below, currently in pre-print:
+
+> [!IMPORTANT]
+> Chiaruttini, N., Castoldi, C. et al. **ABBA, a novel tool for whole-brain mapping, reveals brain-wide differences in immediate early genes induction following learning**. _bioRxiv_ (2024).\
+> [https://doi.org/10.1101/2024.09.06.611625](https://doi.org/10.1101/2024.09.06.611625)
 
 ## Building
 
