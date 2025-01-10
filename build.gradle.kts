@@ -1,8 +1,8 @@
 plugins {
-    // QuPath Gradle extension convention plugin
-    id("qupath-conventions")
     // To optionally create a shadow/fat jar that bundle up any non-core dependencies
     id("com.gradleup.shadow") version "8.3.5"
+    // QuPath Gradle extension convention plugin
+    id("qupath-conventions")
     `maven-publish`
 }
 
@@ -23,6 +23,7 @@ dependencies {
     implementation("commons-io:commons-io:2.11.0")
     implementation("net.imglib2:imglib2-realtransform:4.0.3")
     implementation("qupath.ext.warpy:qupath-extension-warpy:0.3.1")
+    // implementation("qupath.ext.warpy:qupath-extension-warpy:0.4.0") // supports QP 0.6.*
 }
 
 
