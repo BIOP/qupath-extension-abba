@@ -13,9 +13,9 @@ import qupath.ext.biop.abba.struct.AtlasOntology;
 import qupath.ext.warpy.Warpy;
 import qupath.imagej.tools.IJTools;
 import qupath.lib.common.ColorTools;
-import qupath.lib.gui.QuPathGUI;
 import qupath.lib.images.ImageData;
-import qupath.lib.images.servers.ImageServer;
+import qupath.lib.images.servers.ImageServerBuilder;
+import qupath.lib.images.servers.ImageServerMetadata;
 import qupath.lib.images.servers.RotatedImageServer;
 import qupath.lib.measurements.MeasurementList;
 import qupath.lib.measurements.MeasurementListFactory;
@@ -36,12 +36,14 @@ import java.awt.geom.AffineTransform;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Matcher;
@@ -126,6 +128,35 @@ public class AtlasTools {
         return atlasRoot;
     }
 
+    static Optional<RotatedImageServer.Rotation> getLazyRotation(ImageServerBuilder.ServerBuilder<?> serverBuilder) {
+        try {
+            Field rotationField = serverBuilder.getClass().getDeclaredField("rotation");
+            rotationField.setAccessible(true);
+            return Optional.of((RotatedImageServer.Rotation) rotationField.get(serverBuilder));
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            return Optional.empty();
+        }
+    }
+
+    static Optional<ImageServerBuilder.ServerBuilder<?>> getLazyWrappedBuilder(ImageServerBuilder.ServerBuilder<?> serverBuilder) {
+        try {
+            Field builderField = serverBuilder.getClass().getDeclaredField("builder");
+            builderField.setAccessible(true);
+            return Optional.of((ImageServerBuilder.ServerBuilder<?>) builderField.get(serverBuilder));
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            return Optional.empty();
+        }
+    }
+
+    static List<ImageServerBuilder.ServerBuilder<?>> getLazyNestedBuilders(ImageData<?> imageData) {
+        Optional<? extends ImageServerBuilder.ServerBuilder<?>> serverBuilder = Optional.of(imageData.getServerBuilder());
+        List<ImageServerBuilder.ServerBuilder<?>> builders = new ArrayList<>();
+        do {
+            serverBuilder.ifPresent(builders::add);
+        } while ((serverBuilder = getLazyWrappedBuilder(serverBuilder.get())).isPresent());
+        return builders.reversed(); // the order is from the innermost server to the outermost
+    }
+
     public static List<PathObject> getFlattenedWarpedAtlasRegions(AtlasOntology ontology, ImageData<BufferedImage> imageData, boolean splitLeftRight) {
         Project<BufferedImage> project = QP.getProject();
 
@@ -158,32 +189,32 @@ public class AtlasTools {
         rois.remove(left);
         rois.remove(right);
 
-        // Rotation for rotated servers
-        ImageServer<?> server = imageData.getServer();
 
         AffineTransform transform = null;
-
-        if (server instanceof RotatedImageServer) {
+        for (ImageServerBuilder.ServerBuilder<?> serverBuilder: getLazyNestedBuilders(imageData)) {
             // The roi will need to be transformed before being imported
-            // First : get the rotation
-            RotatedImageServer ris = (RotatedImageServer) server;
-            switch (ris.getRotation()) {
+            Optional<RotatedImageServer.Rotation> rotation;
+            if ((rotation = getLazyRotation(serverBuilder)).isEmpty())
+                // the server is not rotated
+                continue;
+            ImageServerMetadata metadata = imageData.getServerMetadata();
+                switch (rotation.get()) {
                 case ROTATE_NONE: // No rotation.
                     break;
                 case ROTATE_90: // Rotate 90 degrees clockwise.
                     transform = AffineTransform.getRotateInstance(Math.PI/2.0);
-                    transform.translate(0, -server.getWidth());
+                    transform.translate(0, -metadata.getWidth());
                     break;
                 case ROTATE_180: // Rotate 180 degrees.
                     transform = AffineTransform.getRotateInstance(Math.PI);
-                    transform.translate(-server.getWidth(), -server.getHeight());
+                    transform.translate(-metadata.getWidth(), -metadata.getHeight());
                     break;
                 case ROTATE_270: // Rotate 270 degrees
                     transform = AffineTransform.getRotateInstance(Math.PI*3.0/2.0);
-                    transform.translate(-server.getHeight(), 0);
+                    transform.translate(-metadata.getHeight(), 0);
                     break;
                 default:
-                    System.err.println("Unknown rotation for rotated image server: "+ris.getRotation());
+                    System.err.println("Unknown rotation for rotated image server: " + rotation.get());
             }
         }
 
@@ -355,30 +386,29 @@ public class AtlasTools {
         }
         RealTransform transformWithoutServerTransform = Warpy.getRealTransform(fTransform);
 
-        // Rotation for rotated servers
-        ImageServer<?> server = imageData.getServer();
-
         AffineTransform3D transform = new AffineTransform3D();
-
-        if (server instanceof RotatedImageServer) {
+        for (ImageServerBuilder.ServerBuilder<?> serverBuilder: getLazyNestedBuilders(imageData)) {
             // The roi will need to be transformed before being imported
-            // First : get the rotation
-            RotatedImageServer ris = (RotatedImageServer) server;
-            switch (ris.getRotation()) {
+            Optional<RotatedImageServer.Rotation> rotation;
+            if ((rotation = getLazyRotation(serverBuilder)).isEmpty())
+                // the server is not rotated
+                continue;
+            ImageServerMetadata metadata = imageData.getServerMetadata();
+            switch (rotation.get()) {
                 case ROTATE_NONE: // No rotation.
                     break;
                 case ROTATE_90:
                     // Rotate 90 degrees clockwise.
                     transform.set(new double[]{
-                            0.0,-1.0, 0.0, server.getWidth(),
+                            0.0,-1.0, 0.0, metadata.getWidth(),
                             1.0, 0.0, 0.0, 0.0,
                             0.0, 0.0, 1.0, 0.0
                     });
                     break;
                 case ROTATE_180: // Rotate 180 degrees.
                     transform.set(new double[]{
-                           -1.0, 0.0, 0.0, server.getWidth(),
-                            0.0,-1.0, 0.0, server.getHeight(),
+                           -1.0, 0.0, 0.0, metadata.getWidth(),
+                            0.0,-1.0, 0.0, metadata.getHeight(),
                             0.0, 0.0, 1.0, 0.0
                     });
                     break;
@@ -386,12 +416,12 @@ public class AtlasTools {
                     // Rotate 90 degrees clockwise.
                     transform.set(new double[]{
                             0.0, 1.0, 0.0, 0.0,
-                           -1.0, 0.0, 0.0, server.getHeight(),
+                           -1.0, 0.0, 0.0, metadata.getHeight(),
                             0.0, 0.0, 1.0, 0.0
                     });
                     break;
                 default:
-                    System.err.println("Unknown rotation for rotated image server: "+ris.getRotation());
+                    System.err.println("Unknown rotation for rotated image server: " + rotation.get());
             }
         }
 
