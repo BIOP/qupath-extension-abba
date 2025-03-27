@@ -156,190 +156,6 @@ public class AtlasTools {
         return builders.reversed(); // the order is from the innermost server to the outermost
     }
 
-    public static List<PathObject> getFlattenedWarpedAtlasRegions(AtlasOntology ontology, ImageData<BufferedImage> imageData, String roisetName, boolean splitLeftRight) {
-        Project<BufferedImage> project = QP.getProject();
-
-        // Loop through each ImageEntry
-        ProjectImageEntry<BufferedImage> entry = project.getEntry(imageData);
-
-        Path roisetPath = Paths.get(entry.getEntryPath().toString(), "ABBA-RoiSet-"+roisetName+".zip");
-        if (!Files.exists(roisetPath)) {
-            logger.info("No RoiSets found: {}", roisetPath);
-            return null;
-        }
-
-        // Get all the ROIs and add them as PathAnnotations
-        List<Roi> rois = RoiSetLoader.openRoiSet(roisetPath.toAbsolutePath().toFile());
-        logger.info("Loading {} Atlas Regions for {}", rois.size(), entry.getImageName());
-
-        Roi right = null;
-        Roi left = null;
-
-        for (Roi roi:rois) {
-            if (roi.getName().equals("Left")) {
-                left = roi;
-            }
-            if (roi.getName().equals("Right")) {
-                right = roi;
-            }
-        }
-
-        rois.remove(left);
-        rois.remove(right);
-
-
-        AffineTransform transform = null;
-        for (ImageServerBuilder.ServerBuilder<?> serverBuilder: getLazyNestedBuilders(imageData)) {
-            // The roi will need to be transformed before being imported
-            Optional<RotatedImageServer.Rotation> rotation;
-            if ((rotation = getLazyRotation(serverBuilder)).isEmpty())
-                // the server is not rotated
-                continue;
-            ImageServerMetadata metadata = imageData.getServerMetadata();
-                switch (rotation.get()) {
-                case ROTATE_NONE: // No rotation.
-                    break;
-                case ROTATE_90: // Rotate 90 degrees clockwise.
-                    transform = AffineTransform.getRotateInstance(Math.PI/2.0);
-                    transform.translate(0, -metadata.getWidth());
-                    break;
-                case ROTATE_180: // Rotate 180 degrees.
-                    transform = AffineTransform.getRotateInstance(Math.PI);
-                    transform.translate(-metadata.getWidth(), -metadata.getHeight());
-                    break;
-                case ROTATE_270: // Rotate 270 degrees
-                    transform = AffineTransform.getRotateInstance(Math.PI*3.0/2.0);
-                    transform.translate(-metadata.getHeight(), 0);
-                    break;
-                default:
-                    System.err.println("Unknown rotation for rotated image server: " + rotation.get());
-            }
-        }
-
-        AffineTransform finalTransform = transform;
-
-        List<PathObject> annotations = rois.stream().map(roi -> {
-            // Create PathObject
-
-            PathObject object = PathObjects.createAnnotationObject(IJTools.convertToROI(roi, 0, 0, 1, null));
-
-            // Handles rotated image server
-            if (finalTransform !=null) {
-                object = PathObjectTools.transformObject(object, finalTransform, true);
-            }
-
-            // Add metadata to object as acquired from the Ontology
-            int object_id = Integer.parseInt(roi.getName());
-            // Get associated information
-            AtlasNode node = ontology.getNodeFromId(object_id);
-            String name = node.data().get(ontology.getNamingProperty());
-            if ((name == null) && (ontology.getNamingProperty().equals("ID"))) {
-                name = Integer.toString(object_id);
-            }
-            object.setName(name);
-            object.getMeasurementList().put("ID", node.getId());
-            if (node.parent()!=null) {
-                //System.out.println("Parent ID = "+node.parent().getId());
-                object.getMeasurementList().put("Parent ID", node.parent().getId());
-            } else {
-                //System.out.println("Node without parent; id = "+node.getId());
-            }
-            object.getMeasurementList().put("Side", 0);
-            object.setPathClass(QP.getPathClass(name));
-            object.setLocked(true);
-            int[] rgba = node.getColor();
-            int color = ColorTools.packRGB(rgba[0], rgba[1], rgba[2]);
-            object.setColor(color);
-            return object;
-        }).collect(Collectors.toList());
-
-        if (splitLeftRight) {
-            ROI leftROI = null;
-            ROI rightROI = null;
-            if (left!=null) {
-                leftROI = IJTools.convertToROI(left, 0, 0, 1, null);
-                // Handles rotated image server
-                if (finalTransform !=null) {
-                    PathObject leftObject = PathObjects.createAnnotationObject(leftROI);
-                    leftROI = PathObjectTools.transformObject(leftObject, finalTransform, true).getROI();
-                }
-            }
-            if (right!=null) {
-                rightROI = IJTools.convertToROI(right, 0, 0, 1, null);
-                // Handles rotated image server
-                if (finalTransform !=null) {
-                    PathObject rightObject = PathObjects.createAnnotationObject(rightROI);
-                    rightROI = PathObjectTools.transformObject(rightObject, finalTransform, true).getROI();
-                }
-            }
-            List<PathObject> splitObjects = new ArrayList<>();
-            for (PathObject annotation : annotations) {
-
-                if (leftROI!=null) {
-                    ROI shapeLeft = RoiTools.combineROIs(leftROI, annotation.getROI(), RoiTools.CombineOp.INTERSECT);
-                    if (!shapeLeft.isEmpty()) {
-                        PathObject objectLeft = PathObjects.createAnnotationObject(shapeLeft, annotation.getPathClass(), duplicateMeasurements(annotation.getMeasurementList()));
-                        objectLeft.setName(annotation.getName());
-                        objectLeft.setPathClass(QP.getDerivedPathClass(QP.getPathClass("Left"), annotation.getPathClass().getName()));
-                        objectLeft.setColor(annotation.getColor());
-                        objectLeft.setLocked(true);
-                        splitObjects.add(objectLeft);
-                    }
-                }
-
-                if (rightROI!=null) {
-                    ROI shapeRight = RoiTools.combineROIs(rightROI, annotation.getROI(), RoiTools.CombineOp.INTERSECT);
-                    if (!shapeRight.isEmpty()) {
-                        PathObject objectRight = PathObjects.createAnnotationObject(shapeRight, annotation.getPathClass(), duplicateMeasurements(annotation.getMeasurementList()));
-                        objectRight.setName(annotation.getName());
-                        objectRight.setPathClass(QP.getDerivedPathClass(QP.getPathClass("Right"), annotation.getPathClass().getName()));
-                        objectRight.setColor(annotation.getColor());
-                        objectRight.setLocked(true);
-                        splitObjects.add(objectRight);
-                    }
-                }
-
-            }
-            return splitObjects;
-        } else {
-            return annotations;
-        }
-    }
-    /**
-     * Same as {@link #getFlattenedWarpedAtlasRegions(AtlasOntology, ImageData, String, boolean)}
-     * but assuming that the roiset names are the same as the ontology name.
-     * @param ontology
-     * @param imageData
-     * @param splitLeftRight
-     * @return
-     */
-    public static List<PathObject> getFlattenedWarpedAtlasRegions(AtlasOntology ontology, ImageData<BufferedImage> imageData, boolean splitLeftRight) {
-        String ontologyName = ontology.getName();
-        List<PathObject> warpedRegions = getFlattenedWarpedAtlasRegions(ontology, imageData, ontologyName, splitLeftRight);
-        if (warpedRegions == null && "waxholm_sprague_dawley_rat_v4".equals(ontologyName)) {
-            logger.info("For the rat ontologies you always need to be explicitly specify the RoiSet name. Usually, 'whs_sd_rat_39um_java' or 'Rat - Waxholm Sprague Dawley V4p2'");
-            return null;
-        }
-        return warpedRegions;
-    }
-
-    public static PathObject loadWarpedAtlasAnnotations(AtlasOntology ontology, ImageData<BufferedImage> imageData, String roisetName, boolean splitLeftRight, boolean overwrite) {
-        PathObject atlasRoot = getWarpedAtlasRegions(ontology, imageData, roisetName, splitLeftRight);
-        if (atlasRoot == null) return null;
-        PathObjectHierarchy hierarchy = imageData.getHierarchy();
-        PathClass atlasClass = QP.getPathClass(ontology.getName());
-        List<PathObject> previousAtlases = QP.getAnnotationObjects()
-                .stream()
-                .filter(o -> "Root".equals(o.getName()) && o.getPathClass() != null && o.getPathClass().equals(atlasClass))
-                .toList();
-        if (overwrite && !previousAtlases.isEmpty())
-            hierarchy.removeObjects(previousAtlases, false);
-        atlasRoot.setPathClass(atlasClass);
-        hierarchy.addObject(atlasRoot);
-        hierarchy.fireHierarchyChangedEvent(AtlasTools.class);
-        return atlasRoot;
-    }
-
     private static MeasurementList duplicateMeasurements(MeasurementList measurements) {
         MeasurementList list = MeasurementListFactory.createMeasurementList(measurements.size(), MeasurementList.MeasurementListType.GENERAL);
 
@@ -480,6 +296,23 @@ public class AtlasTools {
         return loadWarpedAtlasAnnotations(ontology, imageData, ontologyName, splitLeftRight, overwrite);
     }
 
+    public static PathObject loadWarpedAtlasAnnotations(AtlasOntology ontology, ImageData<BufferedImage> imageData, String roisetName, boolean splitLeftRight, boolean overwrite) {
+        PathObject atlasRoot = getWarpedAtlasRegions(ontology, imageData, roisetName, splitLeftRight);
+        if (atlasRoot == null) return null;
+        PathObjectHierarchy hierarchy = imageData.getHierarchy();
+        PathClass atlasClass = QP.getPathClass(ontology.getName());
+        List<PathObject> previousAtlases = QP.getAnnotationObjects()
+                .stream()
+                .filter(o -> "Root".equals(o.getName()) && o.getPathClass() != null && o.getPathClass().equals(atlasClass))
+                .toList();
+        if (overwrite && !previousAtlases.isEmpty())
+            hierarchy.removeObjects(previousAtlases, false);
+        atlasRoot.setPathClass(atlasClass);
+        hierarchy.addObject(atlasRoot);
+        hierarchy.fireHierarchyChangedEvent(AtlasTools.class);
+        return atlasRoot;
+    }
+
     public static PathObject loadWarpedAtlasAnnotations(AtlasOntology ontology, ImageData<BufferedImage> imageData, boolean splitLeftRight, boolean overwrite) {
         PathObject rootAnnotation = loadWarpedAtlasAnnotations(ontology, imageData, ontology.getName(), splitLeftRight, overwrite);
         if (rootAnnotation == null) {
@@ -489,6 +322,7 @@ public class AtlasTools {
         return rootAnnotation;
     }
 
+    @Deprecated
     public static PathObject loadWarpedAtlasAnnotations(ImageData<BufferedImage> imageData, String namingProperty, boolean splitLeftRight, boolean overwrite) {
         List<String> ontologyFiles = AtlasTools.getAvailableAtlasOntologyFiles();
         if (ontologyFiles == null || ontologyFiles.isEmpty()) {
@@ -505,5 +339,173 @@ public class AtlasTools {
     @Deprecated
     public static void loadWarpedAtlasAnnotations(ImageData<BufferedImage> imageData, String namingProperty, boolean splitLeftRight) {
         loadWarpedAtlasAnnotations(imageData, namingProperty, splitLeftRight, false);
+    }
+
+    public static List<PathObject> getFlattenedWarpedAtlasRegions(AtlasOntology ontology, ImageData<BufferedImage> imageData, String roisetName, boolean splitLeftRight) {
+        Project<BufferedImage> project = QP.getProject();
+
+        // Loop through each ImageEntry
+        ProjectImageEntry<BufferedImage> entry = project.getEntry(imageData);
+
+        Path roisetPath = Paths.get(entry.getEntryPath().toString(), "ABBA-RoiSet-"+roisetName+".zip");
+        if (!Files.exists(roisetPath)) {
+            logger.info("No RoiSets found: {}", roisetPath);
+            return null;
+        }
+
+        // Get all the ROIs and add them as PathAnnotations
+        List<Roi> rois = RoiSetLoader.openRoiSet(roisetPath.toAbsolutePath().toFile());
+        logger.info("Loading {} Atlas Regions for {}", rois.size(), entry.getImageName());
+
+        Roi right = null;
+        Roi left = null;
+
+        for (Roi roi:rois) {
+            if (roi.getName().equals("Left")) {
+                left = roi;
+            }
+            if (roi.getName().equals("Right")) {
+                right = roi;
+            }
+        }
+
+        rois.remove(left);
+        rois.remove(right);
+
+
+        AffineTransform transform = null;
+        for (ImageServerBuilder.ServerBuilder<?> serverBuilder: getLazyNestedBuilders(imageData)) {
+            // The roi will need to be transformed before being imported
+            Optional<RotatedImageServer.Rotation> rotation;
+            if ((rotation = getLazyRotation(serverBuilder)).isEmpty())
+                // the server is not rotated
+                continue;
+            ImageServerMetadata metadata = imageData.getServerMetadata();
+            switch (rotation.get()) {
+                case ROTATE_NONE: // No rotation.
+                    break;
+                case ROTATE_90: // Rotate 90 degrees clockwise.
+                    transform = AffineTransform.getRotateInstance(Math.PI/2.0);
+                    transform.translate(0, -metadata.getWidth());
+                    break;
+                case ROTATE_180: // Rotate 180 degrees.
+                    transform = AffineTransform.getRotateInstance(Math.PI);
+                    transform.translate(-metadata.getWidth(), -metadata.getHeight());
+                    break;
+                case ROTATE_270: // Rotate 270 degrees
+                    transform = AffineTransform.getRotateInstance(Math.PI*3.0/2.0);
+                    transform.translate(-metadata.getHeight(), 0);
+                    break;
+                default:
+                    System.err.println("Unknown rotation for rotated image server: " + rotation.get());
+            }
+        }
+
+        AffineTransform finalTransform = transform;
+
+        List<PathObject> annotations = rois.stream().map(roi -> {
+            // Create PathObject
+
+            PathObject object = PathObjects.createAnnotationObject(IJTools.convertToROI(roi, 0, 0, 1, null));
+
+            // Handles rotated image server
+            if (finalTransform !=null) {
+                object = PathObjectTools.transformObject(object, finalTransform, true);
+            }
+
+            // Add metadata to object as acquired from the Ontology
+            int object_id = Integer.parseInt(roi.getName());
+            // Get associated information
+            AtlasNode node = ontology.getNodeFromId(object_id);
+            String name = node.data().get(ontology.getNamingProperty());
+            if ((name == null) && (ontology.getNamingProperty().equals("ID"))) {
+                name = Integer.toString(object_id);
+            }
+            object.setName(name);
+            object.getMeasurementList().put("ID", node.getId());
+            if (node.parent()!=null) {
+                //System.out.println("Parent ID = "+node.parent().getId());
+                object.getMeasurementList().put("Parent ID", node.parent().getId());
+            } else {
+                //System.out.println("Node without parent; id = "+node.getId());
+            }
+            object.getMeasurementList().put("Side", 0);
+            object.setPathClass(QP.getPathClass(name));
+            object.setLocked(true);
+            int[] rgba = node.getColor();
+            int color = ColorTools.packRGB(rgba[0], rgba[1], rgba[2]);
+            object.setColor(color);
+            return object;
+        }).collect(Collectors.toList());
+
+        if (splitLeftRight) {
+            ROI leftROI = null;
+            ROI rightROI = null;
+            if (left!=null) {
+                leftROI = IJTools.convertToROI(left, 0, 0, 1, null);
+                // Handles rotated image server
+                if (finalTransform !=null) {
+                    PathObject leftObject = PathObjects.createAnnotationObject(leftROI);
+                    leftROI = PathObjectTools.transformObject(leftObject, finalTransform, true).getROI();
+                }
+            }
+            if (right!=null) {
+                rightROI = IJTools.convertToROI(right, 0, 0, 1, null);
+                // Handles rotated image server
+                if (finalTransform !=null) {
+                    PathObject rightObject = PathObjects.createAnnotationObject(rightROI);
+                    rightROI = PathObjectTools.transformObject(rightObject, finalTransform, true).getROI();
+                }
+            }
+            List<PathObject> splitObjects = new ArrayList<>();
+            for (PathObject annotation : annotations) {
+
+                if (leftROI!=null) {
+                    ROI shapeLeft = RoiTools.combineROIs(leftROI, annotation.getROI(), RoiTools.CombineOp.INTERSECT);
+                    if (!shapeLeft.isEmpty()) {
+                        PathObject objectLeft = PathObjects.createAnnotationObject(shapeLeft, annotation.getPathClass(), duplicateMeasurements(annotation.getMeasurementList()));
+                        objectLeft.setName(annotation.getName());
+                        objectLeft.setPathClass(QP.getDerivedPathClass(QP.getPathClass("Left"), annotation.getPathClass().getName()));
+                        objectLeft.setColor(annotation.getColor());
+                        objectLeft.setLocked(true);
+                        splitObjects.add(objectLeft);
+                    }
+                }
+
+                if (rightROI!=null) {
+                    ROI shapeRight = RoiTools.combineROIs(rightROI, annotation.getROI(), RoiTools.CombineOp.INTERSECT);
+                    if (!shapeRight.isEmpty()) {
+                        PathObject objectRight = PathObjects.createAnnotationObject(shapeRight, annotation.getPathClass(), duplicateMeasurements(annotation.getMeasurementList()));
+                        objectRight.setName(annotation.getName());
+                        objectRight.setPathClass(QP.getDerivedPathClass(QP.getPathClass("Right"), annotation.getPathClass().getName()));
+                        objectRight.setColor(annotation.getColor());
+                        objectRight.setLocked(true);
+                        splitObjects.add(objectRight);
+                    }
+                }
+
+            }
+            return splitObjects;
+        } else {
+            return annotations;
+        }
+    }
+
+    /**
+     * Same as {@link #getFlattenedWarpedAtlasRegions(AtlasOntology, ImageData, String, boolean)}
+     * but assuming that the roiset names are the same as the ontology name.
+     * @param ontology
+     * @param imageData
+     * @param splitLeftRight
+     * @return
+     */
+    public static List<PathObject> getFlattenedWarpedAtlasRegions(AtlasOntology ontology, ImageData<BufferedImage> imageData, boolean splitLeftRight) {
+        String ontologyName = ontology.getName();
+        List<PathObject> warpedRegions = getFlattenedWarpedAtlasRegions(ontology, imageData, ontologyName, splitLeftRight);
+        if (warpedRegions == null && "waxholm_sprague_dawley_rat_v4".equals(ontologyName)) {
+            logger.info("For the rat ontologies you always need to be explicitly specify the RoiSet name. Usually, 'whs_sd_rat_39um_java' or 'Rat - Waxholm Sprague Dawley V4p2'");
+            return null;
+        }
+        return warpedRegions;
     }
 }
