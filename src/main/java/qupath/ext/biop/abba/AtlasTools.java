@@ -26,7 +26,6 @@ import qupath.lib.objects.classes.PathClass;
 import qupath.lib.objects.hierarchy.PathObjectHierarchy;
 import qupath.lib.projects.Project;
 import qupath.lib.projects.ProjectImageEntry;
-import qupath.lib.projects.Projects;
 import qupath.lib.roi.ROIs;
 import qupath.lib.roi.RoiTools;
 import qupath.lib.roi.interfaces.ROI;
@@ -81,9 +80,9 @@ public class AtlasTools {
         return rootReference.get();
     }
 
-    static PathObject getWarpedAtlasRegions(AtlasOntology ontology, ImageData<BufferedImage> imageData, boolean splitLeftRight) {
+    static PathObject getWarpedAtlasRegions(AtlasOntology ontology, ImageData<BufferedImage> imageData, String roisetName, boolean splitLeftRight) {
 
-        List<PathObject> annotations = getFlattenedWarpedAtlasRegions(ontology, imageData, splitLeftRight);
+        List<PathObject> annotations = getFlattenedWarpedAtlasRegions(ontology, imageData, roisetName, splitLeftRight);
 
         if (annotations == null) return null;
 
@@ -157,16 +156,15 @@ public class AtlasTools {
         return builders.reversed(); // the order is from the innermost server to the outermost
     }
 
-    public static List<PathObject> getFlattenedWarpedAtlasRegions(AtlasOntology ontology, ImageData<BufferedImage> imageData, boolean splitLeftRight) {
+    public static List<PathObject> getFlattenedWarpedAtlasRegions(AtlasOntology ontology, ImageData<BufferedImage> imageData, String roisetName, boolean splitLeftRight) {
         Project<BufferedImage> project = QP.getProject();
 
         // Loop through each ImageEntry
         ProjectImageEntry<BufferedImage> entry = project.getEntry(imageData);
 
-        String atlasName = ontology.getName();
-        Path roisetPath = Paths.get(entry.getEntryPath().toString(), "ABBA-RoiSet-"+atlasName+".zip");
+        Path roisetPath = Paths.get(entry.getEntryPath().toString(), "ABBA-RoiSet-"+roisetName+".zip");
         if (!Files.exists(roisetPath)) {
-            logger.info("No RoiSets found in {}", roisetPath);
+            logger.info("No RoiSets found: {}", roisetPath);
             return null;
         }
 
@@ -307,33 +305,39 @@ public class AtlasTools {
             return annotations;
         }
     }
-
-    @Deprecated
-    public static List<PathObject> getFlattenedWarpedAtlasRegions(AtlasOntology ontology, ImageData<BufferedImage> imageData, String atlasName, boolean splitLeftRight) {
-        return getFlattenedWarpedAtlasRegions(ontology, imageData, splitLeftRight);
-    }
-
-    public static PathObject loadWarpedAtlasAnnotations(AtlasOntology ontology, ImageData<BufferedImage> imageData, boolean splitLeftRight, boolean overwrite) {
-        PathObject atlasRoot = getWarpedAtlasRegions(ontology, imageData, splitLeftRight);
-        if (atlasRoot!=null) {
-            PathObjectHierarchy hierarchy = imageData.getHierarchy();
-            PathClass atlasClass = QP.getPathClass(ontology.getName());
-            List<PathObject> previousAtlases = QP.getAnnotationObjects()
-                    .stream()
-                    .filter(o -> "Root".equals(o.getName()) && o.getPathClass() != null && o.getPathClass().equals(atlasClass))
-                    .toList();
-            if (overwrite && !previousAtlases.isEmpty())
-                hierarchy.removeObjects(previousAtlases, false);
-            atlasRoot.setPathClass(atlasClass);
-            hierarchy.addObject(atlasRoot);
-            hierarchy.fireHierarchyChangedEvent(AtlasTools.class);
+    /**
+     * Same as {@link #getFlattenedWarpedAtlasRegions(AtlasOntology, ImageData, String, boolean)}
+     * but assuming that the roiset names are the same as the ontology name.
+     * @param ontology
+     * @param imageData
+     * @param splitLeftRight
+     * @return
+     */
+    public static List<PathObject> getFlattenedWarpedAtlasRegions(AtlasOntology ontology, ImageData<BufferedImage> imageData, boolean splitLeftRight) {
+        String ontologyName = ontology.getName();
+        List<PathObject> warpedRegions = getFlattenedWarpedAtlasRegions(ontology, imageData, ontologyName, splitLeftRight);
+        if (warpedRegions == null && "waxholm_sprague_dawley_rat_v4".equals(ontologyName)) {
+            logger.info("For the rat ontologies you always need to be explicitly specify the RoiSet name. Usually, 'whs_sd_rat_39um_java' or 'Rat - Waxholm Sprague Dawley V4p2'");
+            return null;
         }
-        return atlasRoot;
+        return warpedRegions;
     }
 
-    @Deprecated
-    public static void loadWarpedAtlasAnnotations(AtlasOntology ontology, ImageData<BufferedImage> imageData, String atlasName, boolean splitLeftRight) {
-        loadWarpedAtlasAnnotations(ontology, imageData, splitLeftRight, false);
+    public static PathObject loadWarpedAtlasAnnotations(AtlasOntology ontology, ImageData<BufferedImage> imageData, String roisetName, boolean splitLeftRight, boolean overwrite) {
+        PathObject atlasRoot = getWarpedAtlasRegions(ontology, imageData, roisetName, splitLeftRight);
+        if (atlasRoot == null) return null;
+        PathObjectHierarchy hierarchy = imageData.getHierarchy();
+        PathClass atlasClass = QP.getPathClass(ontology.getName());
+        List<PathObject> previousAtlases = QP.getAnnotationObjects()
+                .stream()
+                .filter(o -> "Root".equals(o.getName()) && o.getPathClass() != null && o.getPathClass().equals(atlasClass))
+                .toList();
+        if (overwrite && !previousAtlases.isEmpty())
+            hierarchy.removeObjects(previousAtlases, false);
+        atlasRoot.setPathClass(atlasClass);
+        hierarchy.addObject(atlasRoot);
+        hierarchy.fireHierarchyChangedEvent(AtlasTools.class);
+        return atlasRoot;
     }
 
     private static MeasurementList duplicateMeasurements(MeasurementList measurements) {
@@ -346,6 +350,26 @@ public class AtlasTools {
         return list;
     }
 
+    public static List<String> getAvailableAtlasOntologyFiles() {
+        String suffix = "-Ontology.json";
+        try {
+            return Files.list(QP.getProject().getPath().getParent())
+                    .filter(path -> path.toString().endsWith(suffix))
+                    .map(path -> path.getFileName().toString())
+                    // .map(file -> file.substring(0, file.length() - suffix.length()))
+                    .toList();
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+    /**
+     * Returns the name of the available atlas registrations for a given image.<br>
+     * NOTE: the returned names are not necessarily the codename of an atlas ontology.
+     * @param imageData the data of the image from which to check the available registrations.
+     * @return a list of string identifiers.
+     */
     public static List<String> getAvailableAtlasRegistration(ImageData<BufferedImage> imageData) {
         Project<BufferedImage> project = QP.getProject();
         ProjectImageEntry<BufferedImage> entry = project.getEntry(imageData);
@@ -355,12 +379,12 @@ public class AtlasTools {
         // Now look for files named "ABBA-Roiset-"+atlasName+".zip";
         // regex ( found with https://regex101.com/): (ABBA-RoiSet-)(.+)(.zip)
 
-        Pattern atlasNamePattern = Pattern.compile("(ABBA-RoiSet-)(.+)(.zip)");
+        Pattern roisetPattern = Pattern.compile("(ABBA-RoiSet-)(.+)(.zip)");
 
         try {
             Files.list(entry.getEntryPath())
                     .forEach(path -> {
-                        Matcher matcher = atlasNamePattern.matcher(path.getFileName().toString());
+                        Matcher matcher = roisetPattern.matcher(path.getFileName().toString());
                         if (matcher.matches())
                             atlasNames.add(matcher.group(2)); // Why in hell is this one-based ?
                     });
@@ -372,14 +396,14 @@ public class AtlasTools {
     }
 
     public static RealTransform getAtlasToPixelTransform(ImageData<BufferedImage> imageData) {
-        String atlasName = getAvailableAtlasRegistration(imageData).get(0);
-        return getAtlasToPixelTransform(imageData, atlasName); // Needs the inverse transform
+        String registrationName = getAvailableAtlasRegistration(imageData).get(0);
+        return getAtlasToPixelTransform(imageData, registrationName); // Needs the inverse transform
     }
 
-    public static RealTransform getAtlasToPixelTransform(ImageData<BufferedImage> imageData, String atlasName) {
+    public static RealTransform getAtlasToPixelTransform(ImageData<BufferedImage> imageData, String transformName) {
         Project<BufferedImage> project = QP.getProject();
         ProjectImageEntry<BufferedImage> entry = project.getEntry(imageData);
-        File fTransform = new File(entry.getEntryPath().toString(),"ABBA-Transform-"+atlasName+".json");
+        File fTransform = new File(entry.getEntryPath().toString(),"ABBA-Transform-"+transformName+".json");
         if (!fTransform.exists()) {
             logger.error("ABBA transformation file not found for entry "+entry);
             return null;
@@ -437,37 +461,45 @@ public class AtlasTools {
         return ontology.getRoot().data().keySet();
     }
 
-    public static PathObject loadWarpedAtlasAnnotations(ImageData<BufferedImage> imageData, String namingProperty, boolean splitLeftRight, boolean overwrite) {
-        List<String> atlasNames = AtlasTools.getAvailableAtlasRegistration(imageData);
-        if (atlasNames.isEmpty()) {
-            logger.error("No atlas registration found."); // TODO : show an error message for the user
-            return null;
-        }
-
-        String atlasName = atlasNames.get(0);
-        if (atlasNames.size()>1) {
-            logger.warn("Several atlases registration have been found. Importing atlas: "+atlasName);
-        }
-
-        Path ontologyPath = Paths.get(Projects.getBaseDirectory(QP.getProject()).getAbsolutePath(), atlasName+"-Ontology.json");
+    public static PathObject loadWarpedAtlasAnnotations(ImageData<BufferedImage> imageData, String ontologyName, String namingProperty, boolean splitLeftRight, boolean overwrite) {
+        Path ontologyPath = Paths.get(QP.buildPathInProject(ontologyName+"-Ontology.json")).toAbsolutePath();
         AtlasOntology ontology = AtlasHelper.openOntologyFromJsonFile(ontologyPath.toString());
-
-        if (ontology == null) {
-            logger.warn("Missing ontology for atlas "+atlasName+". No file present in path "+ontologyPath);
+        if (ontology == null)
             return null;
-        }
 
         Set<String> namingProperties = AtlasTools.getNamingProperties(ontology);
 
         if ( !namingProperties.contains( namingProperty ) ) {
-            logger.error("Ontology Name Property {} not found.\nAvailable properties are:  {}", namingProperty, namingProperties.toString());
+            logger.error("Ontology Name Property {} not found.\nAvailable properties are:  {}", namingProperty, namingProperties);
             return null;
         }
 
         ontology.setNamingProperty(namingProperty);
 
         // Now we have all we need, the name whether to split left and right
-        return loadWarpedAtlasAnnotations(ontology, imageData, splitLeftRight, overwrite);
+        return loadWarpedAtlasAnnotations(ontology, imageData, ontologyName, splitLeftRight, overwrite);
+    }
+
+    public static PathObject loadWarpedAtlasAnnotations(AtlasOntology ontology, ImageData<BufferedImage> imageData, boolean splitLeftRight, boolean overwrite) {
+        PathObject rootAnnotation = loadWarpedAtlasAnnotations(ontology, imageData, ontology.getName(), splitLeftRight, overwrite);
+        if (rootAnnotation == null) {
+            logger.error("Can't find the registration corresponding to the atlas ontology of the project: {}", ontology.getName()); // TODO : show an error message for the user
+            return null;
+        }
+        return rootAnnotation;
+    }
+
+    public static PathObject loadWarpedAtlasAnnotations(ImageData<BufferedImage> imageData, String namingProperty, boolean splitLeftRight, boolean overwrite) {
+        List<String> ontologyFiles = AtlasTools.getAvailableAtlasOntologyFiles();
+        if (ontologyFiles == null || ontologyFiles.isEmpty()) {
+            logger.error("No atlas ontology found."); // TODO : show an error message for the user
+            return null;
+        }
+
+        String ontologyFile = ontologyFiles.get(0);
+        if (ontologyFiles.size()>1)
+            logger.warn("Several atlas ontologies have been found. Importing ontology: "+ontologyFile);
+        return loadWarpedAtlasAnnotations(imageData, ontologyFile.substring(0, ontologyFile.length()-"-Ontology.json".length()), namingProperty, splitLeftRight, overwrite);
     }
 
     @Deprecated
