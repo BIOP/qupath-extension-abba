@@ -27,7 +27,7 @@ ext.moduleName =  "qupath.extension.abba"
 description = "QuPath extension to use Aligning Big Brain and Atlases"
 
 group = "ch.epfl.biop"
-version = "0.3.3-SNAPSHOT"
+version = "0.3.3"
 
 dependencies {
     implementation("io.github.qupath:qupath-gui-fx:$qupathVersion")
