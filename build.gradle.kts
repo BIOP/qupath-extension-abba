@@ -25,30 +25,29 @@ dependencies {
 }
 
 
+
 publishing {
     repositories {
         maven {
-            name = "scijava"
-            //credentials(PasswordCredentials::class)
-            url = if (version.toString().endsWith("SNAPSHOT")) {
-                uri("https://maven.scijava.org/content/repositories/snapshots")
-            } else {
-                uri("https://maven.scijava.org/content/repositories/releases")
-            }
+            name = "SciJava"
+            val releasesRepoUrl = uri("https://maven.scijava.org/content/repositories/releases")
+            val snapshotsRepoUrl = uri("https://maven.scijava.org/content/repositories/snapshots")
+            // Use gradle -Prelease publish
+            url = if (project.hasProperty("release")) releasesRepoUrl else snapshotsRepoUrl
             credentials {
                 username = System.getenv("MAVEN_USER")
                 password = System.getenv("MAVEN_PASS")
             }
         }
     }
-
     publications {
         create<MavenPublication>("mavenJava") {
+            from(components["java"])
             pom {
                 licenses {
                     license {
-                        name = "GNU General Public License, Version 3"
-                        url = "https://www.gnu.org/licenses/gpl-3.0.txt"
+                        name.set("BSD-3-Clause")
+                        url.set("https://opensource.org/licenses/BSD-3-Clause")
                     }
                 }
             }
