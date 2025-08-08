@@ -1,14 +1,15 @@
 plugins {
     // To optionally create a shadow/fat jar that bundle up any non-core dependencies
-    id("com.gradleup.shadow") version "8.3.5"
+    // id("com.gradleup.shadow") version "8.3.5"
     // QuPath Gradle extension convention plugin
     id("qupath-conventions")
-    `maven-publish`
+    // Add the maven-publish plugin
+    id("maven-publish")
 }
 
 qupathExtension {
     name = "qupath-extension-abba"
-    group = "ch.epfl.biop"
+    group = "qupath.ext.biop.abba"
     version = "0.4.0-SNAPSHOT"
     description = "QuPath extension to use Aligning Big Brain and Atlases"
     automaticModule = "qupath.ext.biop.abba"
@@ -16,16 +17,12 @@ qupathExtension {
 
 dependencies {
     // Main dependencies for most QuPath extensions
-    shadow(libs.bundles.qupath)
-    shadow(libs.bundles.logging)
-    shadow(libs.qupath.fxtras)
-
+    implementation(libs.bundles.qupath)
+    implementation(libs.qupath.fxtras)
     implementation("commons-io:commons-io:2.11.0")
-    implementation("net.imglib2:imglib2-realtransform:4.0.3")
-    implementation("qupath.ext.warpy:qupath-extension-warpy:0.3.1")
-    // implementation("qupath.ext.warpy:qupath-extension-warpy:0.4.0") // supports QP 0.6.*
+    implementation("net.imglib2:imglib2-realtransform:3.1.2")
+    implementation("qupath.ext.warpy:qupath-extension-warpy:0.4.2")
 }
-
 
 
 publishing {
