@@ -10,7 +10,7 @@ plugins {
 qupathExtension {
     name = "qupath-extension-abba"
     group = "qupath.ext.biop.abba"
-    version = "0.4.0-SNAPSHOT"
+    version = "0.4.0"
     description = "QuPath extension to use Aligning Big Brain and Atlases"
     automaticModule = "qupath.ext.biop.abba"
 }
