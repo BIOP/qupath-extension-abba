@@ -4,20 +4,19 @@ This repo adds some support for the [ABBA plugin](https://go.epfl.ch/abba) in Qu
 
 ## Installing
 
-Download the latest zip release of this extension ([releases](https://github.com/BIOP/qupath-extension-abba/releases)), unzip it and drag the jar files onto the main QuPath window.
+In QuPath 0.6, this extension should be installed via the [QuPath BIOP catalog](https://github.com/BIOP/qupath-biop-catalog).
 
-If you haven't installed any extensions before, you'll be prompted to select a QuPath user directory.
-The extension will then be copied to a location inside that directory.
-
-You might then need to restart QuPath (but not your computer).
+Don't forget to restart QuPath (but not your computer).
 
 ## Citing
 
-If you use ABBA in your work, please cite the paper below, currently in pre-print:
+If you use ABBA in your work, please cite the paper below:
 
 > [!IMPORTANT]
 > Chiaruttini, N.; Castoldi, C.; Requie, L. et al. **ABBA+BraiAn, an integrated suite for whole-brain mapping, reveals brain-wide differences in immediate-early genes induction upon learning**. _Cell Reports_ (2025).\
 > [https://doi.org/10.1016/j.celrep.2025.115876](https://doi.org/10.1016/j.celrep.2025.115876)
+
+Please do not forget to cite other tools you may use, such as DeepSlice, Brainglobe, QuPath...
 
 ## Building
 
