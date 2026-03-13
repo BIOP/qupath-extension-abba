@@ -10,21 +10,18 @@ plugins {
 qupathExtension {
     name = "qupath-extension-abba"
     group = "qupath.ext.biop.abba"
-    version = "0.4.0"
+    version = "0.5.0"
     description = "QuPath extension to use Aligning Big Brain and Atlases"
     automaticModule = "qupath.ext.biop.abba"
 }
 
 dependencies {
-    // Main dependencies for most QuPath extensions
     implementation(libs.bundles.qupath)
     implementation(libs.qupath.fxtras)
-    implementation("commons-io:commons-io:2.11.0")
-    implementation("net.imglib2:imglib2-realtransform:3.1.2")
-    implementation("qupath.ext.warpy:qupath-extension-warpy:0.4.2")
+    implementation("commons-io:commons-io:2.15.0")
+    implementation("net.imglib2:imglib2-realtransform:4.0.4")
+    implementation("qupath.ext.warpy:qupath-extension-warpy:0.5.0")
 }
-
-
 
 publishing {
     repositories {
